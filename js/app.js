@@ -315,6 +315,9 @@ document.addEventListener('DOMContentLoaded', () => {
       lastResults = displayResults;
       lastCog = currentUnit === 'ft' ? convertPointToImperial(calcInputs.cog) : calcInputs.cog;
 
+      // Show results section first so 3D container has dimensions
+      resultsSection.style.display = 'block';
+
       // 2D diagrams + overlay
       refreshDiagrams();
 
@@ -326,7 +329,6 @@ document.addEventListener('DOMContentLoaded', () => {
         SlingScene.update(displayResults, lastCog, sceneUnits);
       }
 
-      resultsSection.style.display = 'block';
       resultsSection.scrollIntoView({ behavior: 'smooth' });
     } catch (err) {
       errorDiv.textContent = err.message;

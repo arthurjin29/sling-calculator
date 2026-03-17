@@ -102,6 +102,9 @@ function clearScene() {
  * @param {object} [units] - { length: 'm'|'ft', load: 't'|'US t' }
  */
 export function update(results, cog, units) {
+  // Ensure renderer is sized correctly (container may have been hidden during init)
+  onResize();
+
   const unitLen = (units && units.length) || 'm';
   const unitLoad = (units && units.load) || 't';
   clearScene();
