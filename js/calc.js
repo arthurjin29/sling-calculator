@@ -57,7 +57,8 @@ const SlingCalc = (() => {
         length: round4(length),
         angleDegFromHoriz: round2(angleDeg),
         angleDegFromVert: round2(angleFromVertDeg),
-        isCritical: Math.abs(requiredHookZs[i] - hookZ) < 0.0001
+        governsHookHeight: Math.abs(requiredHookZs[i] - hookZ) < 0.0001,
+        isCritical: false
       };
     });
 
@@ -71,12 +72,20 @@ const SlingCalc = (() => {
       s.verticalLoad = round4(tensions[i] * Math.sin(degToRad(s.angleDegFromHoriz)));
     });
 
+    // Critical sling = highest tension (most loaded)
+    let maxTension = -Infinity;
+    let criticalIndex = 0;
+    slings.forEach((s, i) => {
+      if (s.tension > maxTension) {
+        maxTension = s.tension;
+        criticalIndex = i;
+      }
+    });
+    slings[criticalIndex].isCritical = true;
+
     // Headroom: hook height above highest lifting point
     const maxLPz = Math.max(...liftingPoints.map(lp => lp.z));
     const headroom = hookZ - maxLPz;
-
-    // Critical sling index
-    const criticalIndex = slings.findIndex(s => s.isCritical);
 
     return {
       hook,

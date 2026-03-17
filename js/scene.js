@@ -197,7 +197,8 @@ export function update(results, cog, units) {
   sceneObjects.push(wireLine);
 
   // --- Sling lines + labels ---
-  slings.forEach((s) => {
+  const labelPositions = [0.35, 0.45, 0.55, 0.65];
+  slings.forEach((s, idx) => {
     const lp = s.liftingPoint;
     const color = s.isCritical ? criticalColor : normalColor;
 
@@ -212,8 +213,9 @@ export function update(results, cog, units) {
     scene.add(tube);
     sceneObjects.push(tube);
 
-    // Sling label at midpoint
-    const mid = new THREE.Vector3().addVectors(hookPt, lpPt).multiplyScalar(0.5);
+    // Sling label at staggered position along sling
+    const t = labelPositions[idx % labelPositions.length];
+    const mid = new THREE.Vector3().lerpVectors(hookPt, lpPt, t);
     const labelText = `${s.length.toFixed(2)}${unitLen}\n${s.angleDegFromHoriz.toFixed(0)}\u00B0\n${s.tension.toFixed(2)}${unitLoad}`;
     const labelColor = s.isCritical ? '#e74c3c' : '#27ae60';
     const slingLabel = createLabel(labelText, labelColor, true);

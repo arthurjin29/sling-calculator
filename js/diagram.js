@@ -65,14 +65,16 @@ const SlingDiagram = (() => {
     svg += `<polygon points="${lps.map(p => `${tx(p.x)},${ty(p.y)}`).join(' ')}" fill="${COLORS.load}" fill-opacity="0.1" stroke="${COLORS.load}" stroke-width="1.5"/>`;
 
     // Sling lines (projected horizontal)
-    slings.forEach(s => {
+    const planLabelPos = [0.35, 0.45, 0.55, 0.65];
+    slings.forEach((s, sIdx) => {
       const lp = s.liftingPoint;
       const color = s.isCritical ? COLORS.critical : COLORS.normal;
       svg += `<line x1="${tx(hook.x)}" y1="${ty(hook.y)}" x2="${tx(lp.x)}" y2="${ty(lp.y)}" stroke="${color}" stroke-width="2" stroke-dasharray="6,3"/>`;
 
-      // H. dist label at midpoint
-      const mx = (tx(hook.x) + tx(lp.x)) / 2;
-      const my = (ty(hook.y) + ty(lp.y)) / 2;
+      // H. dist label at staggered position
+      const t = planLabelPos[sIdx % planLabelPos.length];
+      const mx = tx(hook.x) + (tx(lp.x) - tx(hook.x)) * t;
+      const my = ty(hook.y) + (ty(lp.y) - ty(hook.y)) * t;
       svg += `<text x="${mx}" y="${my - 6}" text-anchor="middle" font-size="10" fill="${color}" font-weight="600">${s.horizontalDist.toFixed(2)}${unit}</text>`;
     });
 
@@ -166,7 +168,8 @@ const SlingDiagram = (() => {
     svg += `<line x1="${hookX}" y1="${hookY - 6}" x2="${hookX}" y2="${ty(hook.z + 2)}" stroke="${COLORS.hook}" stroke-width="1.5" stroke-dasharray="4,3"/>`;
 
     // Sling lines from hook to each LP (elevation)
-    elevPts.forEach(ep => {
+    const elevLabelPos = [0.3, 0.45, 0.55, 0.7];
+    elevPts.forEach((ep, epIdx) => {
       const s = slings[ep.idx];
       const color = s.isCritical ? COLORS.critical : COLORS.normal;
       const lpX = tx(ep.h), lpY = ty(ep.z);
@@ -178,9 +181,10 @@ const SlingDiagram = (() => {
       svg += `<circle cx="${lpX}" cy="${lpY}" r="5" fill="${COLORS.lp}" stroke="white" stroke-width="1"/>`;
       svg += `<text x="${lpX}" y="${lpY + 16}" text-anchor="middle" font-size="10" font-weight="700" fill="${COLORS.lp}">LP${ep.idx + 1}</text>`;
 
-      // Sling length + angle label
-      const mx = (hookX + lpX) / 2;
-      const my = (hookY + lpY) / 2;
+      // Sling length + angle label at staggered position
+      const t = elevLabelPos[epIdx % elevLabelPos.length];
+      const mx = hookX + (lpX - hookX) * t;
+      const my = hookY + (lpY - hookY) * t;
       const offset = ep.h < 0 ? -8 : 8;
       const anchor = ep.h < 0 ? 'end' : 'start';
       svg += `<text x="${mx + offset}" y="${my}" text-anchor="${anchor}" font-size="9" font-weight="600" fill="${color}">${s.length.toFixed(2)}${unit}</text>`;
