@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>4-Point Sling Length Calculator</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>4-Point Sling Length Calculator</h1>
+    <p class="subtitle">Calculate sling lengths, angles, and load distribution for a 4-point lift</p>
+
+    <!-- DISCLAIMER -->
+    <div class="disclaimer">
+      This calculator is for rigging length estimation only. The load distributions are for reference only — minor discrepancies in rigging length could lead to significant changes in distribution. Always refer to Australian Standards for rigging equipment selection.
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="toolbar no-print">
+      <div class="toolbar-group">
+        <label class="toolbar-label">Preset:</label>
+        <select id="preset-select">
+          <option value="">— Select —</option>
+          <option value="rect-sym">Rectangular (symmetric)</option>
+          <option value="rect-offset">Rectangular (offset COG)</option>
+          <option value="square">Square (symmetric)</option>
+          <option value="trapezoid">Trapezoid</option>
+          <option value="elevated">Elevated LPs (different Z)</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
+        <label class="toolbar-label">Units:</label>
+        <select id="unit-select">
+          <option value="m">Metres / Tonnes</option>
+          <option value="ft">Feet / US Tons</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
+        <button type="button" id="btn-save" class="btn btn-small btn-secondary">Save Config</button>
+        <select id="load-select">
+          <option value="">— Load Saved —</option>
+        </select>
+        <button type="button" id="btn-delete-saved" class="btn btn-small btn-secondary" title="Delete selected saved config">Del</button>
+      </div>
+    </div>
+
+    <!-- INPUT FORM -->
+    <form id="calc-form" class="card">
+      <h2>Lifting Points</h2>
+      <div class="lp-grid">
+        <div class="lp-group">
+          <h3>Lifting Point 1</h3>
+          <div class="coord-row">
+            <label>X <input type="number" id="lp1-x" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Y <input type="number" id="lp1-y" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Z <input type="number" id="lp1-z" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+          </div>
+        </div>
+        <div class="lp-group">
+          <h3>Lifting Point 2</h3>
+          <div class="coord-row">
+            <label>X <input type="number" id="lp2-x" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Y <input type="number" id="lp2-y" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Z <input type="number" id="lp2-z" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+          </div>
+        </div>
+        <div class="lp-group">
+          <h3>Lifting Point 3</h3>
+          <div class="coord-row">
+            <label>X <input type="number" id="lp3-x" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Y <input type="number" id="lp3-y" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Z <input type="number" id="lp3-z" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+          </div>
+        </div>
+        <div class="lp-group">
+          <h3>Lifting Point 4</h3>
+          <div class="coord-row">
+            <label>X <input type="number" id="lp4-x" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Y <input type="number" id="lp4-y" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Z <input type="number" id="lp4-z" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+          </div>
+        </div>
+      </div>
+
+      <h2 style="margin-top:1.5rem">Centre of Gravity &amp; Load</h2>
+      <div class="lp-grid">
+        <div class="lp-group">
+          <h3>COG Position</h3>
+          <div class="coord-row">
+            <label>X <input type="number" id="cog-x" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Y <input type="number" id="cog-y" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+            <label>Z <input type="number" id="cog-z" step="any" placeholder="0"> <span class="unit-label">m</span></label>
+          </div>
+        </div>
+        <div class="lp-group">
+          <h3>Load Parameters</h3>
+          <div class="params-row">
+            <div class="param-group">
+              <label>Total Suspended Load</label>
+              <div><input type="number" id="total-load" step="any" min="0.01" placeholder="10"> <span class="unit-label load-unit">tonnes</span></div>
+            </div>
+            <div class="param-group">
+              <label>Min Sling Angle</label>
+              <div><input type="number" id="min-angle" step="any" min="1" max="89" value="60"> <span class="unit">° from horizontal</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="error-msg" class="error-msg"></div>
+
+      <div class="btn-row no-print">
+        <button type="submit" class="btn btn-primary">Calculate</button>
+        <button type="button" id="btn-clear" class="btn btn-secondary">Clear</button>
+        <button type="button" id="btn-example" class="btn btn-accent">Load Example</button>
+        <button type="button" onclick="window.print()" class="btn btn-secondary" style="margin-left:auto">Print / PDF</button>
+      </div>
+    </form>
+
+    <!-- RESULTS -->
+    <section id="results">
+      <div class="card">
+        <h2>Summary</h2>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="value" id="res-hook-height">—</div>
+            <div class="label">Hook Height (<span class="res-unit">m</span>)</div>
+          </div>
+          <div class="summary-item">
+            <div class="value" id="res-headroom">—</div>
+            <div class="label">Headroom Above Load* (<span class="res-unit">m</span>)</div>
+          </div>
+          <div class="summary-item">
+            <div class="value" id="res-height-above-cog">—</div>
+            <div class="label">Height Above COG (<span class="res-unit">m</span>)</div>
+          </div>
+          <div class="summary-item">
+            <div class="value" id="res-total-load">—</div>
+            <div class="label">Total Load (<span class="res-load-unit">t</span>)</div>
+          </div>
+          <div class="summary-item">
+            <div class="value" id="res-critical" style="color:var(--danger)">—</div>
+            <div class="label">Critical Sling</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Sling Details</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sling</th>
+                <th>Length (<span class="res-unit">m</span>)</th>
+                <th>Angle (horiz / vert)</th>
+                <th>H. Dist (<span class="res-unit">m</span>)</th>
+                <th>V. Dist (<span class="res-unit">m</span>)</th>
+                <th>Tension (<span class="res-load-unit">t</span>)</th>
+                <th>V. Load (<span class="res-load-unit">t</span>)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="sling-table-body"></tbody>
+          </table>
+        </div>
+        <p class="angle-note">Angles shown as: from horizontal / from vertical. Minimum angle governs the critical sling.</p>
+        <p class="angle-note">*Headroom is the geometric distance from the highest LP to the hook point — it does not account for hook block, shackles, or rigging hardware.</p>
+        <p class="check-row">Verification — Sum of vertical loads: <strong id="res-vload-check">—</strong> <span class="res-load-unit">t</span> (should equal total load)</p>
+      </div>
+
+      <!-- IMAGE/PDF OVERLAY -->
+      <div class="card no-print">
+        <h2>Drawing Overlay</h2>
+        <p class="overlay-desc">Upload a GA drawing or photo to overlay on the plan view diagram.</p>
+        <div class="overlay-controls">
+          <div class="overlay-upload">
+            <label for="overlay-file" class="btn btn-small btn-primary" style="cursor:pointer">Choose File</label>
+            <input type="file" id="overlay-file" accept="image/*,.pdf" style="display:none">
+            <span id="overlay-filename" class="overlay-filename">No file selected</span>
+            <button type="button" id="btn-overlay-clear" class="btn btn-small btn-secondary">Remove</button>
+          </div>
+          <div class="overlay-sliders" id="overlay-sliders" style="display:none">
+            <div class="slider-group">
+              <label>Opacity</label>
+              <input type="range" id="overlay-opacity" min="0" max="100" value="40">
+              <span id="overlay-opacity-val">40%</span>
+            </div>
+            <div class="slider-group">
+              <label>Scale</label>
+              <input type="range" id="overlay-scale" min="10" max="300" value="100">
+              <span id="overlay-scale-val">100%</span>
+            </div>
+            <div class="slider-group">
+              <label>Rotation</label>
+              <input type="range" id="overlay-rotation" min="-180" max="180" value="0">
+              <span id="overlay-rotation-val">0°</span>
+            </div>
+            <div class="slider-group">
+              <label>Offset X</label>
+              <input type="range" id="overlay-ox" min="-200" max="200" value="0">
+              <span id="overlay-ox-val">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Offset Y</label>
+              <input type="range" id="overlay-oy" min="-200" max="200" value="0">
+              <span id="overlay-oy-val">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DXF IMPORT -->
+      <div class="card no-print">
+        <h2>DXF Import (2D Drawing)</h2>
+        <p class="overlay-desc">Import a DXF file to overlay 2D geometry on the plan view.</p>
+        <div class="overlay-upload">
+          <label for="dxf-file" class="btn btn-small btn-primary" style="cursor:pointer">Choose DXF</label>
+          <input type="file" id="dxf-file" accept=".dxf" style="display:none">
+          <span id="dxf-filename" class="overlay-filename">No file selected</span>
+          <span id="dxf-info" class="overlay-filename"></span>
+          <button type="button" id="btn-dxf-clear" class="btn btn-small btn-secondary">Remove</button>
+        </div>
+        <div id="dxf-sliders" style="display:none">
+          <div class="overlay-sliders">
+            <div class="slider-group">
+              <label>Scale</label>
+              <input type="range" id="dxf-scale" min="10" max="300" value="100">
+              <span id="dxf-scale-val">100%</span>
+            </div>
+            <div class="slider-group">
+              <label>Rotation</label>
+              <input type="range" id="dxf-rotation" min="-180" max="180" value="0">
+              <span id="dxf-rotation-val">0°</span>
+            </div>
+            <div class="slider-group">
+              <label>Offset X</label>
+              <input type="range" id="dxf-ox" min="-200" max="200" value="0">
+              <span id="dxf-ox-val">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Offset Y</label>
+              <input type="range" id="dxf-oy" min="-200" max="200" value="0">
+              <span id="dxf-oy-val">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Line Width</label>
+              <input type="range" id="dxf-lw" min="0.5" max="4" step="0.5" value="1">
+              <span id="dxf-lw-val">1</span>
+            </div>
+            <div class="slider-group">
+              <label>Colour</label>
+              <input type="color" id="dxf-color" value="#555555" style="width:40px;height:24px;border:none;cursor:pointer">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STL IMPORT -->
+      <div class="card no-print">
+        <h2>STL Import (3D Model)</h2>
+        <p class="overlay-desc">Import an STL file to display a 3D model in the scene.</p>
+        <div class="overlay-upload">
+          <label for="stl-file" class="btn btn-small btn-primary" style="cursor:pointer">Choose STL</label>
+          <input type="file" id="stl-file" accept=".stl" style="display:none">
+          <span id="stl-filename" class="overlay-filename">No file selected</span>
+          <span id="stl-info" class="overlay-filename"></span>
+          <button type="button" id="btn-stl-clear" class="btn btn-small btn-secondary">Remove</button>
+        </div>
+        <div id="stl-sliders" style="display:none">
+          <div class="overlay-sliders">
+            <div class="slider-group">
+              <label>Scale</label>
+              <input type="range" id="stl-scale" min="1" max="500" value="100">
+              <span id="stl-scale-val">1.00</span>
+            </div>
+            <div class="slider-group">
+              <label>Rotation</label>
+              <input type="range" id="stl-rotation" min="-180" max="180" value="0">
+              <span id="stl-rotation-val">0°</span>
+            </div>
+            <div class="slider-group">
+              <label>Opacity</label>
+              <input type="range" id="stl-opacity" min="10" max="100" value="50">
+              <span id="stl-opacity-val">50%</span>
+            </div>
+            <div class="slider-group">
+              <label>Offset X</label>
+              <input type="range" id="stl-ox" min="-20" max="20" step="0.1" value="0">
+              <span id="stl-ox-val">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Offset Y</label>
+              <input type="range" id="stl-oy" min="-20" max="20" step="0.1" value="0">
+              <span id="stl-oy-val">0</span>
+            </div>
+            <div class="slider-group">
+              <label>Offset Z</label>
+              <input type="range" id="stl-oz" min="-20" max="20" step="0.1" value="0">
+              <span id="stl-oz-val">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2D DIAGRAMS (visible on screen + print) -->
+      <div class="card diagram-card">
+        <h2>2D Diagrams</h2>
+        <div class="diagram-grid">
+          <div id="plan-diagram" class="diagram-box"></div>
+          <div id="elev-diagram" class="diagram-box"></div>
+        </div>
+      </div>
+
+      <!-- 3D VISUALIZATION (hidden in print) -->
+      <div class="card no-print">
+        <h2>3D View</h2>
+        <div id="scene-container"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="js/calc.js"></script>
+  <script src="js/diagram.js"></script>
+  <script src="js/overlay.js"></script>
+  <script src="js/cadimport.js"></script>
+  <script src="js/app.js"></script>
+  <script type="module">
+    import { init, update, refreshStlMesh } from './js/scene.js';
+    window.SlingScene = { init, update, refreshStlMesh };
+    init('scene-container');
+  </script>
+</body>
+</html>
