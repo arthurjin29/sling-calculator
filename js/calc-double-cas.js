@@ -43,12 +43,19 @@ window.CalcDoubleCas = (() => {
     } = config;
     const minAngleRad = C.degToRad(minAngleDeg);
 
-    // ── 1. Extract LP groups (convert 1-based to 0-based) ──
-    const groupALPs = pairing.groupA.map(i => liftingPoints[i - 1]);
-    const groupBLPs = pairing.groupB.map(i => liftingPoints[i - 1]);
-
-    const groupALabels = pairing.groupA.map(i => 'LP' + i);
-    const groupBLabels = pairing.groupB.map(i => 'LP' + i);
+    // ── 1. Auto-pair LPs by proximity (closest two form a pair) ──
+    const pairingsOpt = [[[0,1],[2,3]], [[0,2],[1,3]], [[0,3],[1,2]]];
+    let bestPairing = pairingsOpt[0];
+    let bestDist = Infinity;
+    for (const p of pairingsOpt) {
+      const d = C.horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
+              + C.horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
+      if (d < bestDist) { bestDist = d; bestPairing = p; }
+    }
+    const groupALPs = bestPairing[0].map(i => liftingPoints[i]);
+    const groupBLPs = bestPairing[1].map(i => liftingPoints[i]);
+    const groupALabels = bestPairing[0].map(i => 'LP' + (i + 1));
+    const groupBLabels = bestPairing[1].map(i => 'LP' + (i + 1));
 
     // ── 2. Slave beam A ──
     const slaveAxisA = C.getOrientationAxis(liftingPoints, slaveOrientationA);
