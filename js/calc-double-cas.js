@@ -105,55 +105,47 @@ window.CalcDoubleCas = (() => {
     const slaveB1 = pairB.end0;
     const slaveB2 = pairB.end1;
 
-    // ── 4. Master beam — on sling paths, above slave beams ──
-    // Treat slave midpoints as the "LPs" for the master tier.
-    // Use the same computeBeamEndPair logic so master ends sit on the
-    // sling paths from slave midpoints toward the hook, converging inward.
+    // ── 4. Master beam — uses specified length, above slave beams ──
     const slaveMidA = C.midpoint(slaveA1, slaveA2);
     const slaveMidB = C.midpoint(slaveB1, slaveB2);
 
-    // Master beam "spread" is the distance between slave midpoints
-    const masterSpread = C.horizontalDist(slaveMidA, slaveMidB);
-    let masterEndA, masterEndB;
+    // Master beam centre between slave midpoints, along specified axis
+    const masterAxis = C.getOrientationAxis(liftingPoints, masterOrientation);
+    const masterCentre = C.midpoint(slaveMidA, slaveMidB);
 
-    if (masterSpread < 0.0001 || masterLength >= masterSpread) {
-      // Master beam >= slave spread: master ends on X-Z path from slave mids
-      function placeMasterOnXZ(pt) {
-        const dx = hook.x - pt.x;
-        const dz = hook.z - pt.z;
-        const xzDist = Math.sqrt(dx * dx + dz * dz);
-        if (xzDist < 0.0001) return { x: pt.x, y: pt.y, z: pt.z + 2 };
-        const frac = Math.min(2 / xzDist, 0.5); // 2m min middle sling
-        return { x: pt.x + frac * dx, y: pt.y, z: pt.z + frac * dz };
-      }
-      masterEndA = placeMasterOnXZ(slaveMidA);
-      masterEndB = placeMasterOnXZ(slaveMidB);
-    } else {
-      // Master beam shorter than slave spread: place on 3D sling paths
-      const tMaster = 1 - masterLength / masterSpread;
-      const fullLenA = C.dist3D(slaveMidA, hook);
-      const fullLenB = C.dist3D(slaveMidB, hook);
-      const minTM = Math.max(
-        fullLenA > 0 ? 2 / fullLenA : 0, // 2m min middle sling
-        fullLenB > 0 ? 2 / fullLenB : 0
-      );
-      const tM = Math.min(Math.max(tMaster, minTM), 0.7);
-      masterEndA = {
-        x: slaveMidA.x + tM * (hook.x - slaveMidA.x),
-        y: slaveMidA.y + tM * (hook.y - slaveMidA.y),
-        z: slaveMidA.z + tM * (hook.z - slaveMidA.z)
-      };
-      masterEndB = {
-        x: slaveMidB.x + tM * (hook.x - slaveMidB.x),
-        y: slaveMidB.y + tM * (hook.y - slaveMidB.y),
-        z: slaveMidB.z + tM * (hook.z - slaveMidB.z)
-      };
+    let masterEnds = C.computeBeamEnds(
+      { x: masterCentre.x, y: masterCentre.y, z: 0 },
+      masterLength, masterAxis
+    );
+
+    // Assign master end A closest to slave A
+    if (C.horizontalDist(slaveMidA, masterEnds.endB) < C.horizontalDist(slaveMidA, masterEnds.endA)) {
+      const tmp = masterEnds.endA; masterEnds.endA = masterEnds.endB; masterEnds.endB = tmp;
     }
 
-    const masterEnds = { endA: masterEndA, endB: masterEndB };
+    // Master end Z from slave beam ends + min angle (master ABOVE slaves)
+    masterEnds.endA.z = C.computeBeamEndZ([slaveA1, slaveA2], masterEnds.endA, minAngleRad);
+    masterEnds.endB.z = C.computeBeamEndZ([slaveB1, slaveB2], masterEnds.endB, minAngleRad);
 
-    // ── 5. Hook position — use 4-leg direct hook (already computed) ──
-    const topHook = { x: hook.x, y: hook.y, z: hook.z };
+    // ── 5. Hook position — in master beam plane ──
+    const cogToEndA = { x: cog.x - masterEnds.endA.x, y: cog.y - masterEnds.endA.y };
+    const mDir = { x: masterEnds.endB.x - masterEnds.endA.x, y: masterEnds.endB.y - masterEnds.endA.y };
+    const mLen2D = Math.sqrt(mDir.x * mDir.x + mDir.y * mDir.y);
+    let topHookX, topHookY;
+    if (mLen2D > 0.0001) {
+      const tProj = (cogToEndA.x * mDir.x + cogToEndA.y * mDir.y) / (mLen2D * mLen2D);
+      topHookX = masterEnds.endA.x + tProj * mDir.x;
+      topHookY = masterEnds.endA.y + tProj * mDir.y;
+    } else {
+      topHookX = cog.x; topHookY = cog.y;
+    }
+    const topHook = { x: topHookX, y: topHookY, z: 0 };
+    const hDistMA = C.horizontalDist(masterEnds.endA, topHook);
+    const hDistMB = C.horizontalDist(masterEnds.endB, topHook);
+    topHook.z = Math.max(
+      masterEnds.endA.z + hDistMA * Math.tan(minAngleRad),
+      masterEnds.endB.z + hDistMB * Math.tan(minAngleRad)
+    );
 
     // ── 6. COG polygon validation ──
     const cogOutsidePolygon = !C.pointInPolygon2D(cog, liftingPoints);
