@@ -14,9 +14,22 @@ const CalcStinger = (() => {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
     const minAngleRad = CalcCore.degToRad(minAngleDeg);
 
-    // --- 1. Extract LP groups (1-based to 0-based) ---
-    const groupAIndices = config.pairing.groupA.map(i => i - 1);
-    const groupBIndices = config.pairing.groupB.map(i => i - 1);
+    // --- 1. Auto-pair LPs by proximity (closest two form a pair) ---
+    // 3 possible pairings of 4 points into 2 pairs — pick smallest total distance
+    const pairings = [
+      [[0,1],[2,3]],
+      [[0,2],[1,3]],
+      [[0,3],[1,2]]
+    ];
+    let bestPairing = pairings[0];
+    let bestDist = Infinity;
+    for (const p of pairings) {
+      const d = CalcCore.horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
+              + CalcCore.horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
+      if (d < bestDist) { bestDist = d; bestPairing = p; }
+    }
+    const groupAIndices = bestPairing[0];
+    const groupBIndices = bestPairing[1];
     const groupALPs = groupAIndices.map(i => liftingPoints[i]);
     const groupBLPs = groupBIndices.map(i => liftingPoints[i]);
 
@@ -101,6 +114,7 @@ const CalcStinger = (() => {
       const lp = groupALPs[i];
       const sling = CalcCore.buildSling(slingId++,
         { x: lp.x, y: lp.y, z: lp.z, label: 'LP' + (lpIdx + 1) },
+
         { x: apexA.x, y: apexA.y, z: apexA.z, label: 'Apex A' }
       );
       sling.tension = CalcCore.round4(bottomTensionsA[i]);
@@ -113,6 +127,7 @@ const CalcStinger = (() => {
       const lp = groupBLPs[i];
       const sling = CalcCore.buildSling(slingId++,
         { x: lp.x, y: lp.y, z: lp.z, label: 'LP' + (lpIdx + 1) },
+
         { x: apexB.x, y: apexB.y, z: apexB.z, label: 'Apex B' }
       );
       sling.tension = CalcCore.round4(bottomTensionsB[i]);
