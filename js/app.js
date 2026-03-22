@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadSelect = document.getElementById('load-select');
 
   const STORAGE_KEY = 'sling-calc-configs';
+  const configSelect = document.getElementById('config-select');
+  let currentConfig = 'direct';
   let currentUnit = 'm';
   let lastResults = null;
   let lastCog = null;
@@ -87,6 +89,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-example').addEventListener('click', prefillExample);
+
+  configSelect.addEventListener('change', () => {
+    currentConfig = configSelect.value;
+    // Hide all config panels
+    document.querySelectorAll('.config-panel').forEach(p => p.style.display = 'none');
+    // Show selected panel (if not direct)
+    if (currentConfig !== 'direct') {
+      const panel = document.getElementById('panel-' + currentConfig);
+      if (panel) panel.style.display = '';
+    }
+  });
 
   presetSelect.addEventListener('change', () => {
     const key = presetSelect.value;
@@ -300,10 +313,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const results = SlingCalc.calculate(
-        calcInputs.liftingPoints,
-        calcInputs.cog,
-        calcInputs.minAngle,
-        calcInputs.totalLoad
+        inputs.configType,
+        {
+          liftingPoints: calcInputs.liftingPoints,
+          cog: calcInputs.cog,
+          minAngleDeg: calcInputs.minAngle,
+          totalLoad: calcInputs.totalLoad
+        },
+        inputs.configData
       );
 
       // Convert results back to display units
@@ -338,12 +355,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function convertToMetric(inputs) {
     const conv = (p) => ({ x: p.x / M_TO_FT, y: p.y / M_TO_FT, z: p.z / M_TO_FT });
-    return {
+    const result = {
       liftingPoints: inputs.liftingPoints.map(conv),
       cog: conv(inputs.cog),
       totalLoad: inputs.totalLoad / T_TO_USTON,
       minAngle: inputs.minAngle
     };
+    // Convert beam lengths in configData
+    if (inputs.configData.beamLength) inputs.configData.beamLength /= M_TO_FT;
+    if (inputs.configData.beamLengthA) inputs.configData.beamLengthA /= M_TO_FT;
+    if (inputs.configData.beamLengthB) inputs.configData.beamLengthB /= M_TO_FT;
+    if (inputs.configData.masterLength) inputs.configData.masterLength /= M_TO_FT;
+    if (inputs.configData.slaveLengthA) inputs.configData.slaveLengthA /= M_TO_FT;
+    if (inputs.configData.slaveLengthB) inputs.configData.slaveLengthB /= M_TO_FT;
+    if (inputs.configData.topSlingLength) inputs.configData.topSlingLength /= M_TO_FT;
+    return result;
   }
 
   function convertResultsToImperial(r) {
@@ -354,20 +380,37 @@ document.addEventListener('DOMContentLoaded', () => {
       heightAboveCOG: r.heightAboveCOG * M_TO_FT,
       totalLoad: r.totalLoad * T_TO_USTON,
       hook: convertPointToImperial(r.hook),
-      slings: r.slings.map(s => ({
-        ...s,
-        length: s.length * M_TO_FT,
-        horizontalDist: s.horizontalDist * M_TO_FT,
-        verticalDist: s.verticalDist * M_TO_FT,
-        tension: s.tension * T_TO_USTON,
-        verticalLoad: s.verticalLoad * T_TO_USTON,
-        liftingPoint: convertPointToImperial(s.liftingPoint)
+      tiers: r.tiers.map(tier => ({
+        ...tier,
+        slings: tier.slings.map(s => ({
+          ...s,
+          length: s.length * M_TO_FT,
+          horizontalDist: s.horizontalDist * M_TO_FT,
+          verticalDist: s.verticalDist * M_TO_FT,
+          tension: s.tension * T_TO_USTON,
+          verticalLoad: s.verticalLoad * T_TO_USTON,
+          from: convertPointToImperial(s.from),
+          to: convertPointToImperial(s.to)
+        }))
+      })),
+      beams: r.beams.map(b => ({
+        ...b,
+        length: b.length * M_TO_FT,
+        endA: convertPointToImperial(b.endA),
+        endB: convertPointToImperial(b.endB),
+        pickupPoint: b.pickupPoint ? convertPointToImperial(b.pickupPoint) : null
+      })),
+      intermediatePoints: r.intermediatePoints.map(p => ({
+        ...p,
+        x: p.x * M_TO_FT, y: p.y * M_TO_FT, z: p.z * M_TO_FT
       }))
     };
   }
 
   function convertPointToImperial(p) {
-    return { x: p.x * M_TO_FT, y: p.y * M_TO_FT, z: p.z * M_TO_FT };
+    const result = { x: p.x * M_TO_FT, y: p.y * M_TO_FT, z: p.z * M_TO_FT };
+    if (p.label) result.label = p.label;
+    return result;
   }
 
   function convertInputs(fromUnit, toUnit) {
@@ -445,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    return { liftingPoints, cog, totalLoad, minAngle };
+    return { liftingPoints, cog, totalLoad, minAngle, configType: currentConfig, configData: readConfigData(currentConfig) };
   }
 
   function parseRequiredFloat(id, label) {
@@ -455,37 +498,207 @@ document.addEventListener('DOMContentLoaded', () => {
     return val;
   }
 
+  function readConfigData(configType) {
+    if (configType === 'direct') return {};
+
+    const data = {};
+
+    // Read LP pairing
+    const pairingPrefix = getPairingPrefix(configType);
+    if (pairingPrefix) {
+      data.pairing = {
+        groupA: [
+          parseInt(document.getElementById('pair-' + pairingPrefix + '-a1').value),
+          parseInt(document.getElementById('pair-' + pairingPrefix + '-a2').value)
+        ],
+        groupB: [
+          parseInt(document.getElementById('pair-' + pairingPrefix + '-b1').value),
+          parseInt(document.getElementById('pair-' + pairingPrefix + '-b2').value)
+        ]
+      };
+      // Validate: all 4 LPs assigned exactly once
+      const all = [...data.pairing.groupA, ...data.pairing.groupB].sort();
+      if (all.join(',') !== '1,2,3,4') {
+        throw new Error('LP pairing error: each LP (1-4) must be assigned exactly once.');
+      }
+    }
+
+    // Read beam parameters
+    switch (configType) {
+      case 'spreader-beam':
+        data.beamLength = parseRequiredFloat('spreader-beam-length', 'Beam Length');
+        data.orientation = document.getElementById('spreader-orientation').value;
+        break;
+      case 'stinger':
+        data.topSlingLength = parseFloat(document.getElementById('stinger-top-length').value) || 0;
+        break;
+      case 'lifting-beam':
+        data.beamLength = parseRequiredFloat('liftbeam-length', 'Beam Length');
+        data.orientation = document.getElementById('liftbeam-orientation').value;
+        break;
+      case 'double-parallel':
+        data.beamLengthA = parseRequiredFloat('dpar-beam-length-a', 'Beam A Length');
+        data.beamLengthB = parseRequiredFloat('dpar-beam-length-b', 'Beam B Length');
+        data.orientationA = document.getElementById('dpar-orientation-a').value;
+        data.orientationB = document.getElementById('dpar-orientation-b').value;
+        break;
+      case 'double-cascade':
+        data.masterLength = parseRequiredFloat('dcas-master-length', 'Master Beam Length');
+        data.slaveLengthA = parseRequiredFloat('dcas-slave-length-a', 'Slave Beam A Length');
+        data.slaveLengthB = parseRequiredFloat('dcas-slave-length-b', 'Slave Beam B Length');
+        data.masterOrientation = document.getElementById('dcas-master-orientation').value;
+        data.slaveOrientationA = document.getElementById('dcas-slave-orientation-a').value;
+        data.slaveOrientationB = document.getElementById('dcas-slave-orientation-b').value;
+        break;
+    }
+
+    return data;
+  }
+
+  function getPairingPrefix(configType) {
+    const map = {
+      'spreader-beam': 'spreader',
+      'stinger': 'stinger',
+      'lifting-beam': 'liftbeam',
+      'double-parallel': 'dpar',
+      'double-cascade': 'dcas'
+    };
+    return map[configType] || null;
+  }
+
   function displayOutput(r) {
     const dp = currentUnit === 'ft' ? 2 : 3;
+    const resUnit = currentUnit === 'ft' ? 'ft' : 'm';
+    const resLoadUnit = currentUnit === 'ft' ? 'US t' : 't';
 
     document.getElementById('res-hook-height').textContent = r.hookHeight.toFixed(dp);
     document.getElementById('res-headroom').textContent = r.headroom.toFixed(dp);
     document.getElementById('res-height-above-cog').textContent = r.heightAboveCOG.toFixed(dp);
     document.getElementById('res-total-load').textContent = r.totalLoad.toFixed(2);
-    document.getElementById('res-critical').textContent = `Sling ${r.criticalSlingId}`;
 
-    const tbody = document.getElementById('sling-table-body');
-    tbody.innerHTML = '';
+    // Critical sling label
+    let criticalText;
+    if (r.tiers.length === 1) {
+      criticalText = 'Sling ' + r.criticalSling.id;
+    } else {
+      const tierLabel = r.criticalSling.tier.charAt(0).toUpperCase() + r.criticalSling.tier.slice(1);
+      criticalText = tierLabel + ' Sling ' + r.criticalSling.id;
+    }
+    document.getElementById('res-critical').textContent = criticalText;
 
-    r.slings.forEach(s => {
-      const tr = document.createElement('tr');
-      if (s.isCritical) tr.classList.add('critical-row');
+    // Build sling tables per tier
+    const container = document.getElementById('sling-tables-container');
+    container.textContent = '';
 
-      tr.innerHTML = `
-        <td>${s.id}</td>
-        <td>${s.length.toFixed(dp)}</td>
-        <td>${s.angleDegFromHoriz.toFixed(1)}° / ${s.angleDegFromVert.toFixed(1)}°</td>
-        <td>${s.horizontalDist.toFixed(dp)}</td>
-        <td>${s.verticalDist.toFixed(dp)}</td>
-        <td>${s.tension.toFixed(dp)}</td>
-        <td>${s.verticalLoad.toFixed(dp)}</td>
-        <td>${s.isCritical ? 'CRITICAL' : ''}</td>
-      `;
-      tbody.appendChild(tr);
+    r.tiers.forEach(tier => {
+      if (r.tiers.length > 1) {
+        const heading = document.createElement('h3');
+        heading.textContent = tier.name;
+        heading.style.cssText = 'color: var(--primary-light); margin: 1rem 0 0.5rem; font-size: 1rem;';
+        container.appendChild(heading);
+      }
+
+      const wrap = document.createElement('div');
+      wrap.className = 'table-wrap';
+
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Sling', 'From / To', 'Length (' + resUnit + ')', 'Angle (horiz / vert)',
+       'H. Dist (' + resUnit + ')', 'V. Dist (' + resUnit + ')',
+       'Tension (' + resLoadUnit + ')', 'V. Load (' + resLoadUnit + ')', 'Status'].forEach((text, idx) => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        if (idx === 1) th.style.textAlign = 'left';
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      tier.slings.forEach(s => {
+        const tr = document.createElement('tr');
+        if (s.isCritical) tr.classList.add('critical-row');
+
+        const cells = [
+          s.id,
+          s.from.label + ' \u2192 ' + s.to.label,
+          s.length.toFixed(dp),
+          s.angleDegFromHoriz.toFixed(1) + '\u00B0 / ' + s.angleDegFromVert.toFixed(1) + '\u00B0',
+          s.horizontalDist.toFixed(dp),
+          s.verticalDist.toFixed(dp),
+          s.tension.toFixed(dp),
+          s.verticalLoad.toFixed(dp),
+          s.isCritical ? 'CRITICAL' : ''
+        ];
+        cells.forEach((text, idx) => {
+          const td = document.createElement('td');
+          td.textContent = text;
+          if (idx === 1) { td.style.textAlign = 'left'; td.style.fontSize = '0.8rem'; }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
     });
 
-    const vSum = r.slings.reduce((sum, s) => sum + s.verticalLoad, 0);
-    document.getElementById('res-vload-check').textContent = vSum.toFixed(dp);
+    // Vertical load check — bottom tier only
+    const bottomVLoad = r.tiers[0].slings.reduce((sum, s) => sum + s.verticalLoad, 0);
+    document.getElementById('res-vload-check').textContent = bottomVLoad.toFixed(dp);
+
+    // Beam details
+    const beamContainer = document.getElementById('beam-details-container');
+    if (r.beams.length > 0) {
+      beamContainer.style.display = '';
+      beamContainer.textContent = '';
+      const beamHeading = document.createElement('h2');
+      beamHeading.textContent = 'Beam Details';
+      beamContainer.appendChild(beamHeading);
+      r.beams.forEach(b => {
+        const div = document.createElement('div');
+        div.style.marginBottom = '0.75rem';
+        const lines = [
+          b.name + ' \u2014 Length: ' + b.length.toFixed(dp) + ' ' + resUnit,
+          'End A: (' + b.endA.x.toFixed(dp) + ', ' + b.endA.y.toFixed(dp) + ', ' + b.endA.z.toFixed(dp) + ') ' + resUnit,
+          'End B: (' + b.endB.x.toFixed(dp) + ', ' + b.endB.y.toFixed(dp) + ', ' + b.endB.z.toFixed(dp) + ') ' + resUnit
+        ];
+        if (b.pickupPoint) {
+          lines.push('Pickup: (' + b.pickupPoint.x.toFixed(dp) + ', ' + b.pickupPoint.y.toFixed(dp) + ', ' + b.pickupPoint.z.toFixed(dp) + ') ' + resUnit);
+        }
+        lines.forEach((line, i) => {
+          if (i === 0) {
+            const strong = document.createElement('strong');
+            strong.textContent = line;
+            div.appendChild(strong);
+          } else {
+            div.appendChild(document.createElement('br'));
+            div.appendChild(document.createTextNode(line));
+          }
+        });
+        beamContainer.appendChild(div);
+      });
+    } else {
+      beamContainer.style.display = 'none';
+    }
+
+    // Intermediate points
+    const ipContainer = document.getElementById('intermediate-points-container');
+    if (r.intermediatePoints.length > 0) {
+      ipContainer.style.display = '';
+      ipContainer.textContent = '';
+      const ipHeading = document.createElement('h2');
+      ipHeading.textContent = 'Intermediate Points';
+      ipContainer.appendChild(ipHeading);
+      r.intermediatePoints.forEach(p => {
+        const div = document.createElement('div');
+        div.textContent = p.label + ': (' + p.x.toFixed(dp) + ', ' + p.y.toFixed(dp) + ', ' + p.z.toFixed(dp) + ') ' + resUnit;
+        ipContainer.appendChild(div);
+      });
+    } else {
+      ipContainer.style.display = 'none';
+    }
   }
 
   function displayWarnings(warnings) {
@@ -507,6 +720,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (warnings.negativeTension) {
       msgs.push('One or more sling tensions are negative — this is physically impossible and indicates the COG position or LP geometry may be incorrect.');
+    }
+    if (warnings.topSlingAngleLow) {
+      msgs.push('One or more top sling angles are below 30\u00B0 from horizontal — this increases sling tension significantly. Consider increasing the beam length or revising the geometry.');
+    }
+    if (warnings.bottomAngleLow) {
+      msgs.push('One or more bottom sling angles are below the specified minimum angle. Increase the top sling length or revise the geometry.');
+    }
+    if (warnings.liftBeamBendingNotChecked) {
+      msgs.push('Lifting beam bending capacity has NOT been checked — verify the beam can safely support the calculated loads and span.');
     }
 
     if (msgs.length === 0) return;
@@ -535,6 +757,17 @@ document.addEventListener('DOMContentLoaded', () => {
                      'cog-x','cog-y','cog-z','total-load','min-angle'];
     fields.forEach(id => { formData[id] = document.getElementById(id).value; });
     formData._unit = currentUnit;
+    formData._configType = currentConfig;
+
+    // Save config-specific inputs
+    if (currentConfig !== 'direct') {
+      const panel = document.getElementById('panel-' + currentConfig);
+      if (panel) {
+        panel.querySelectorAll('input, select').forEach(el => {
+          if (el.id) formData[el.id] = el.value;
+        });
+      }
+    }
 
     configs[name] = formData;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(configs));
@@ -551,6 +784,16 @@ document.addEventListener('DOMContentLoaded', () => {
       currentUnit = data._unit;
       unitSelect.value = currentUnit;
       updateUnitLabels();
+    }
+
+    // Restore config type and switch panels
+    const configType = data._configType || 'direct';
+    currentConfig = configType;
+    configSelect.value = configType;
+    document.querySelectorAll('.config-panel').forEach(p => p.style.display = 'none');
+    if (configType !== 'direct') {
+      const panel = document.getElementById('panel-' + configType);
+      if (panel) panel.style.display = '';
     }
 
     Object.entries(data).forEach(([id, val]) => {

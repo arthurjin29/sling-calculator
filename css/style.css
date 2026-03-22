@@ -351,6 +351,64 @@ tr:hover { background: #eaf2f8; }
   font-size: 0.8rem;
 }
 
+/* Config panels */
+.config-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-top: 1rem;
+  background: #f8fafc;
+}
+
+.config-inputs {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.pairing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.pair-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+}
+
+.pair-group h3 {
+  font-size: 0.85rem;
+  color: var(--primary-light);
+  margin-bottom: 0.5rem;
+}
+
+.pair-group select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+}
+
+.pair-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.hardware-note {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  font-style: italic;
+  margin-top: 0.5rem;
+}
+
 /* 2D Diagrams */
 .diagram-grid {
   display: grid;

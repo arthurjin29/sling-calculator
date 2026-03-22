@@ -109,43 +109,55 @@ export function update(results, cog, units) {
   const unitLoad = (units && units.load) || 't';
   clearScene();
 
-  const { hook, slings } = results;
-  const lps = slings.map(s => s.liftingPoint);
+  const { hook } = results;
+  const tiers = results.tiers || [];
+  const beams = results.beams || [];
+  const intermediatePoints = results.intermediatePoints || [];
 
-  const criticalColor = 0xe74c3c;
-  const normalColor = 0x27ae60;
+  // Extract LP positions from the bottom tier (tier 0) for load footprint
+  const lps = tiers.length > 0 ? tiers[0].slings.map(s => s.from) : [];
+
+  // Tier colour palettes: [normal, critical]
+  const tierColors = [
+    { normal: 0x27ae60, critical: 0xe74c3c, normalHex: '#27ae60', criticalHex: '#e74c3c' },
+    { normal: 0xe67e22, critical: 0xe67e22, normalHex: '#e67e22', criticalHex: '#e67e22' },
+    { normal: 0x9b59b6, critical: 0x9b59b6, normalHex: '#9b59b6', criticalHex: '#9b59b6' }
+  ];
   const hookColor = 0x2c3e50;
   const lpColor = 0x2980b9;
   const cogColor = 0xe67e22;
   const loadFillColor = 0x3498db;
+  const beamColor = 0xc0392b;
+  const intermediatePtColor = 0x8b5cf6;
 
   // --- Load footprint (filled polygon between LPs) ---
-  // Project onto XZ plane in Three.js (Y=up)
-  const loadShape = new THREE.Shape();
-  loadShape.moveTo(lps[0].x, -lps[0].y);
-  for (let i = 1; i < lps.length; i++) {
-    loadShape.lineTo(lps[i].x, -lps[i].y);
-  }
-  loadShape.closePath();
-  const loadGeo = new THREE.ShapeGeometry(loadShape);
-  const loadMat = new THREE.MeshBasicMaterial({
-    color: loadFillColor, transparent: true, opacity: 0.15, side: THREE.DoubleSide
-  });
-  const loadMesh = new THREE.Mesh(loadGeo, loadMat);
-  const avgZ = lps.reduce((s, p) => s + p.z, 0) / lps.length;
-  loadMesh.rotation.x = -Math.PI / 2;
-  loadMesh.position.y = avgZ;
-  scene.add(loadMesh);
-  sceneObjects.push(loadMesh);
+  if (lps.length >= 3) {
+    const loadShape = new THREE.Shape();
+    loadShape.moveTo(lps[0].x, -lps[0].y);
+    for (let i = 1; i < lps.length; i++) {
+      loadShape.lineTo(lps[i].x, -lps[i].y);
+    }
+    loadShape.closePath();
+    const loadGeo = new THREE.ShapeGeometry(loadShape);
+    const loadMat = new THREE.MeshBasicMaterial({
+      color: loadFillColor, transparent: true, opacity: 0.15, side: THREE.DoubleSide
+    });
+    const loadMesh = new THREE.Mesh(loadGeo, loadMat);
+    const avgZ = lps.reduce((s, p) => s + p.z, 0) / lps.length;
+    loadMesh.rotation.x = -Math.PI / 2;
+    loadMesh.position.y = avgZ;
+    scene.add(loadMesh);
+    sceneObjects.push(loadMesh);
 
-  // Load outline
-  const outlinePts = lps.map(p => new THREE.Vector3(p.x, p.z, -p.y));
-  outlinePts.push(outlinePts[0].clone());
-  const outlineGeo = new THREE.BufferGeometry().setFromPoints(outlinePts);
-  const outlineMat = new THREE.LineBasicMaterial({ color: loadFillColor, linewidth: 2 });
-  const outlineLine = new THREE.Line(outlineGeo, outlineMat);
-  scene.add(outlineLine);
-  sceneObjects.push(outlineLine);
+    // Load outline
+    const outlinePts = lps.map(p => new THREE.Vector3(p.x, p.z, -p.y));
+    outlinePts.push(outlinePts[0].clone());
+    const outlineGeo = new THREE.BufferGeometry().setFromPoints(outlinePts);
+    const outlineMat = new THREE.LineBasicMaterial({ color: loadFillColor, linewidth: 2 });
+    const outlineLine = new THREE.Line(outlineGeo, outlineMat);
+    scene.add(outlineLine);
+    sceneObjects.push(outlineLine);
+  }
 
   // --- Lifting points (spheres) ---
   lps.forEach((lp, i) => {
@@ -154,7 +166,8 @@ export function update(results, cog, units) {
     scene.add(sphere);
     sceneObjects.push(sphere);
 
-    const label = createLabel(`LP${i + 1}`, '#2980b9');
+    const lpText = (lp.label) ? lp.label : `LP${i + 1}`;
+    const label = createLabel(lpText, '#2980b9');
     label.position.set(lp.x, lp.z + 0.35, -lp.y);
     scene.add(label);
     sceneObjects.push(label);
@@ -196,37 +209,79 @@ export function update(results, cog, units) {
   scene.add(wireLine);
   sceneObjects.push(wireLine);
 
-  // --- Sling lines + labels ---
+  // --- Beam rendering ---
+  beams.forEach(beam => {
+    const a = beam.endA;
+    const b = beam.endB;
+    const ptA = new THREE.Vector3(a.x, a.z, -a.y);
+    const ptB = new THREE.Vector3(b.x, b.z, -b.y);
+
+    const beamPath = new THREE.LineCurve3(ptA, ptB);
+    const beamGeo = new THREE.TubeGeometry(beamPath, 1, 0.06, 8, false);
+    const beamMat = new THREE.MeshLambertMaterial({ color: beamColor });
+    const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+    scene.add(beamMesh);
+    sceneObjects.push(beamMesh);
+
+    // Beam label at midpoint
+    const midPt = new THREE.Vector3().lerpVectors(ptA, ptB, 0.5);
+    const beamLabel = createLabel(beam.name || 'Beam', '#c0392b', true);
+    beamLabel.position.copy(midPt);
+    scene.add(beamLabel);
+    sceneObjects.push(beamLabel);
+  });
+
+  // --- Intermediate point rendering ---
+  intermediatePoints.forEach(pt => {
+    const sphere = createSphere(0.1, intermediatePtColor);
+    sphere.position.set(pt.x, pt.z, -pt.y);
+    scene.add(sphere);
+    sceneObjects.push(sphere);
+
+    if (pt.label) {
+      const ptLabel = createLabel(pt.label, '#8b5cf6');
+      ptLabel.position.set(pt.x, pt.z + 0.35, -pt.y);
+      scene.add(ptLabel);
+      sceneObjects.push(ptLabel);
+    }
+  });
+
+  // --- Sling lines + labels (iterate tiers) ---
   const labelPositions = [0.35, 0.45, 0.55, 0.65];
-  slings.forEach((s, idx) => {
-    const lp = s.liftingPoint;
-    const color = s.isCritical ? criticalColor : normalColor;
+  let globalSlingIdx = 0;
+  tiers.forEach((tier, tierIdx) => {
+    const palette = tierColors[tierIdx] || tierColors[0];
 
-    const hookPt = new THREE.Vector3(hook.x, hook.z, -hook.y);
-    const lpPt = new THREE.Vector3(lp.x, lp.z, -lp.y);
+    tier.slings.forEach(s => {
+      const fromPt = new THREE.Vector3(s.from.x, s.from.z, -s.from.y);
+      const toPt = new THREE.Vector3(s.to.x, s.to.z, -s.to.y);
+      const color = s.isCritical ? palette.critical : palette.normal;
 
-    // Tube for visible sling
-    const path = new THREE.LineCurve3(hookPt, lpPt);
-    const tubeGeo = new THREE.TubeGeometry(path, 1, 0.03, 8, false);
-    const tubeMat = new THREE.MeshLambertMaterial({ color });
-    const tube = new THREE.Mesh(tubeGeo, tubeMat);
-    scene.add(tube);
-    sceneObjects.push(tube);
+      // Tube for visible sling
+      const path = new THREE.LineCurve3(fromPt, toPt);
+      const tubeGeo = new THREE.TubeGeometry(path, 1, 0.03, 8, false);
+      const tubeMat = new THREE.MeshLambertMaterial({ color });
+      const tube = new THREE.Mesh(tubeGeo, tubeMat);
+      scene.add(tube);
+      sceneObjects.push(tube);
 
-    // Sling label at staggered position along sling
-    const t = labelPositions[idx % labelPositions.length];
-    const mid = new THREE.Vector3().lerpVectors(hookPt, lpPt, t);
-    const labelText = `${s.length.toFixed(2)}${unitLen}\n${s.angleDegFromHoriz.toFixed(0)}\u00B0\n${s.tension.toFixed(2)}${unitLoad}`;
-    const labelColor = s.isCritical ? '#e74c3c' : '#27ae60';
-    const slingLabel = createLabel(labelText, labelColor, true);
-    slingLabel.position.copy(mid);
-    scene.add(slingLabel);
-    sceneObjects.push(slingLabel);
+      // Sling label at staggered position along sling
+      const t = labelPositions[globalSlingIdx % labelPositions.length];
+      const mid = new THREE.Vector3().lerpVectors(fromPt, toPt, t);
+      const labelText = `${s.length.toFixed(2)}${unitLen}\n${s.angleDegFromHoriz.toFixed(0)}\u00B0\n${s.tension.toFixed(2)}${unitLoad}`;
+      const labelColor = s.isCritical ? palette.criticalHex : palette.normalHex;
+      const slingLabel = createLabel(labelText, labelColor, true);
+      slingLabel.position.copy(mid);
+      scene.add(slingLabel);
+      sceneObjects.push(slingLabel);
+
+      globalSlingIdx++;
+    });
   });
 
   // --- Headroom dimension line ---
-  const maxLPz = Math.max(...lps.map(p => p.z));
-  if (results.headroom > 0.01) {
+  const maxLPz = lps.length > 0 ? Math.max(...lps.map(p => p.z)) : 0;
+  if (results.headroom > 0.01 && lps.length > 0) {
     const dimX = hook.x + 1.5;
     const dimPts = [
       new THREE.Vector3(dimX, maxLPz, -hook.y),
@@ -248,7 +303,11 @@ export function update(results, cog, units) {
   // --- STL mesh if loaded ---
   refreshStlMesh();
 
-  fitCameraToScene(lps, hook);
+  // Collect all relevant points for camera fitting
+  const camPoints = [...lps, hook];
+  beams.forEach(beam => { camPoints.push(beam.endA, beam.endB); });
+  intermediatePoints.forEach(pt => camPoints.push(pt));
+  fitCameraToScene(camPoints);
 }
 
 /**
@@ -271,8 +330,8 @@ export function refreshStlMesh() {
   }
 }
 
-function fitCameraToScene(lps, hook) {
-  const allPts = [...lps, hook];
+function fitCameraToScene(allPts) {
+  if (!allPts || allPts.length === 0) return;
   let minX = Infinity, maxX = -Infinity;
   let minY = Infinity, maxY = -Infinity;
   let minZ = Infinity, maxZ = -Infinity;

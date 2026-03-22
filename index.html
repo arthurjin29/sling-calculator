@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>4-Point Sling Length Calculator</title>
+  <title>Sling Length Calculator</title>
   <link rel="stylesheet" href="css/style.css">
   <script type="importmap">
   {
@@ -16,8 +16,8 @@
 </head>
 <body>
   <div class="container">
-    <h1>4-Point Sling Length Calculator</h1>
-    <p class="subtitle">Calculate sling lengths, angles, and load distribution for a 4-point lift</p>
+    <h1>Sling Length Calculator</h1>
+    <p class="subtitle">Calculate sling lengths, angles, and load distribution for rigging configurations</p>
 
     <!-- DISCLAIMER -->
     <div class="disclaimer">
@@ -26,6 +26,17 @@
 
     <!-- TOOLBAR -->
     <div class="toolbar no-print">
+      <div class="toolbar-group">
+        <label class="toolbar-label">Config:</label>
+        <select id="config-select">
+          <option value="direct">4-Leg Direct</option>
+          <option value="spreader-beam">Spreader Beam</option>
+          <option value="stinger">Stinger / Eq. Triangle</option>
+          <option value="lifting-beam">Lifting Beam</option>
+          <option value="double-parallel">Double Spreader (Parallel)</option>
+          <option value="double-cascade">Double Spreader (Cascading)</option>
+        </select>
+      </div>
       <div class="toolbar-group">
         <label class="toolbar-label">Preset:</label>
         <select id="preset-select">
@@ -113,7 +124,186 @@
               <div><input type="number" id="min-angle" step="any" min="1" max="89" value="60"> <span class="unit">° from horizontal</span></div>
             </div>
           </div>
+          <p class="hardware-note">Include rigging hardware weight (slings, shackles, beams) in the total suspended load.</p>
         </div>
+      </div>
+
+      <!-- Config panels -->
+      <div id="panel-spreader-beam" class="config-panel" style="display:none">
+        <h2 style="margin-top:1.5rem">Spreader Beam Configuration</h2>
+        <div class="config-inputs">
+          <div class="param-group">
+            <label>Beam Length</label>
+            <div><input type="number" id="spreader-beam-length" step="any" min="0.1" value="6"> <span class="unit-label">m</span></div>
+          </div>
+          <div class="param-group">
+            <label>Orientation</label>
+            <select id="spreader-orientation">
+              <option value="lengthwise">Lengthwise</option>
+              <option value="widthwise">Widthwise</option>
+            </select>
+          </div>
+        </div>
+        <div class="pairing-grid">
+          <div class="pair-group">
+            <h3>Group A (Beam End A)</h3>
+            <select id="pair-spreader-a1"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+            <select id="pair-spreader-a2"><option value="1">LP1</option><option value="2" selected>LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+          </div>
+          <div class="pair-group">
+            <h3>Group B (Beam End B)</h3>
+            <select id="pair-spreader-b1"><option value="1">LP1</option><option value="2">LP2</option><option value="3" selected>LP3</option><option value="4">LP4</option></select>
+            <select id="pair-spreader-b2"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4" selected>LP4</option></select>
+          </div>
+        </div>
+        <div id="pair-error-spreader" class="pair-error" style="display:none"></div>
+      </div>
+
+      <div id="panel-stinger" class="config-panel" style="display:none">
+        <h2 style="margin-top:1.5rem">Stinger / Equalising Triangle Configuration</h2>
+        <div class="config-inputs">
+          <div class="param-group">
+            <label>Top Sling Length</label>
+            <div><input type="number" id="stinger-top-length" step="any" min="0" value="0" placeholder="0 = auto"> <span class="unit-label">m</span></div>
+            <span class="hardware-note">0 = auto (halfway between LP pair centre and hook)</span>
+          </div>
+        </div>
+        <div class="pairing-grid">
+          <div class="pair-group">
+            <h3>Group A</h3>
+            <select id="pair-stinger-a1"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+            <select id="pair-stinger-a2"><option value="1">LP1</option><option value="2" selected>LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+          </div>
+          <div class="pair-group">
+            <h3>Group B</h3>
+            <select id="pair-stinger-b1"><option value="1">LP1</option><option value="2">LP2</option><option value="3" selected>LP3</option><option value="4">LP4</option></select>
+            <select id="pair-stinger-b2"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4" selected>LP4</option></select>
+          </div>
+        </div>
+        <div id="pair-error-stinger" class="pair-error" style="display:none"></div>
+      </div>
+
+      <div id="panel-lifting-beam" class="config-panel" style="display:none">
+        <h2 style="margin-top:1.5rem">Lifting Beam Configuration</h2>
+        <div class="config-inputs">
+          <div class="param-group">
+            <label>Beam Length</label>
+            <div><input type="number" id="liftbeam-length" step="any" min="0.1" value="6"> <span class="unit-label">m</span></div>
+          </div>
+          <div class="param-group">
+            <label>Orientation</label>
+            <select id="liftbeam-orientation">
+              <option value="lengthwise">Lengthwise</option>
+              <option value="widthwise">Widthwise</option>
+            </select>
+          </div>
+        </div>
+        <div class="pairing-grid">
+          <div class="pair-group">
+            <h3>Group A (Beam End A)</h3>
+            <select id="pair-liftbeam-a1"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+            <select id="pair-liftbeam-a2"><option value="1">LP1</option><option value="2" selected>LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+          </div>
+          <div class="pair-group">
+            <h3>Group B (Beam End B)</h3>
+            <select id="pair-liftbeam-b1"><option value="1">LP1</option><option value="2">LP2</option><option value="3" selected>LP3</option><option value="4">LP4</option></select>
+            <select id="pair-liftbeam-b2"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4" selected>LP4</option></select>
+          </div>
+        </div>
+        <div id="pair-error-liftbeam" class="pair-error" style="display:none"></div>
+      </div>
+
+      <div id="panel-double-parallel" class="config-panel" style="display:none">
+        <h2 style="margin-top:1.5rem">Double Spreader (Parallel) Configuration</h2>
+        <div class="config-inputs">
+          <div class="param-group">
+            <label>Beam A Length</label>
+            <div><input type="number" id="dpar-beam-length-a" step="any" min="0.1" value="6"> <span class="unit-label">m</span></div>
+          </div>
+          <div class="param-group">
+            <label>Beam A Orientation</label>
+            <select id="dpar-orientation-a">
+              <option value="lengthwise">Lengthwise</option>
+              <option value="widthwise">Widthwise</option>
+            </select>
+          </div>
+          <div class="param-group">
+            <label>Beam B Length</label>
+            <div><input type="number" id="dpar-beam-length-b" step="any" min="0.1" value="6"> <span class="unit-label">m</span></div>
+          </div>
+          <div class="param-group">
+            <label>Beam B Orientation</label>
+            <select id="dpar-orientation-b">
+              <option value="lengthwise">Lengthwise</option>
+              <option value="widthwise">Widthwise</option>
+            </select>
+          </div>
+        </div>
+        <div class="pairing-grid">
+          <div class="pair-group">
+            <h3>Group A (Beam A)</h3>
+            <select id="pair-dpar-a1"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+            <select id="pair-dpar-a2"><option value="1">LP1</option><option value="2" selected>LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+          </div>
+          <div class="pair-group">
+            <h3>Group B (Beam B)</h3>
+            <select id="pair-dpar-b1"><option value="1">LP1</option><option value="2">LP2</option><option value="3" selected>LP3</option><option value="4">LP4</option></select>
+            <select id="pair-dpar-b2"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4" selected>LP4</option></select>
+          </div>
+        </div>
+        <div id="pair-error-dpar" class="pair-error" style="display:none"></div>
+      </div>
+
+      <div id="panel-double-cascade" class="config-panel" style="display:none">
+        <h2 style="margin-top:1.5rem">Double Spreader (Cascading) Configuration</h2>
+        <div class="config-inputs">
+          <div class="param-group">
+            <label>Master Beam Length</label>
+            <div><input type="number" id="dcas-master-length" step="any" min="0.1" value="8"> <span class="unit-label">m</span></div>
+          </div>
+          <div class="param-group">
+            <label>Master Orientation</label>
+            <select id="dcas-master-orientation">
+              <option value="lengthwise">Lengthwise</option>
+              <option value="widthwise">Widthwise</option>
+            </select>
+          </div>
+          <div class="param-group">
+            <label>Slave Beam A Length</label>
+            <div><input type="number" id="dcas-slave-length-a" step="any" min="0.1" value="6"> <span class="unit-label">m</span></div>
+          </div>
+          <div class="param-group">
+            <label>Slave A Orientation</label>
+            <select id="dcas-slave-orientation-a">
+              <option value="lengthwise">Lengthwise</option>
+              <option value="widthwise">Widthwise</option>
+            </select>
+          </div>
+          <div class="param-group">
+            <label>Slave Beam B Length</label>
+            <div><input type="number" id="dcas-slave-length-b" step="any" min="0.1" value="6"> <span class="unit-label">m</span></div>
+          </div>
+          <div class="param-group">
+            <label>Slave B Orientation</label>
+            <select id="dcas-slave-orientation-b">
+              <option value="lengthwise">Lengthwise</option>
+              <option value="widthwise">Widthwise</option>
+            </select>
+          </div>
+        </div>
+        <div class="pairing-grid">
+          <div class="pair-group">
+            <h3>Group A (Slave Beam A)</h3>
+            <select id="pair-dcas-a1"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+            <select id="pair-dcas-a2"><option value="1">LP1</option><option value="2" selected>LP2</option><option value="3">LP3</option><option value="4">LP4</option></select>
+          </div>
+          <div class="pair-group">
+            <h3>Group B (Slave Beam B)</h3>
+            <select id="pair-dcas-b1"><option value="1">LP1</option><option value="2">LP2</option><option value="3" selected>LP3</option><option value="4">LP4</option></select>
+            <select id="pair-dcas-b2"><option value="1">LP1</option><option value="2">LP2</option><option value="3">LP3</option><option value="4" selected>LP4</option></select>
+          </div>
+        </div>
+        <div id="pair-error-dcas" class="pair-error" style="display:none"></div>
       </div>
 
       <div id="error-msg" class="error-msg"></div>
@@ -156,26 +346,18 @@
 
       <div class="card">
         <h2>Sling Details</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Sling</th>
-                <th>Length (<span class="res-unit">m</span>)</th>
-                <th>Angle (horiz / vert)</th>
-                <th>H. Dist (<span class="res-unit">m</span>)</th>
-                <th>V. Dist (<span class="res-unit">m</span>)</th>
-                <th>Tension (<span class="res-load-unit">t</span>)</th>
-                <th>V. Load (<span class="res-load-unit">t</span>)</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="sling-table-body"></tbody>
-          </table>
-        </div>
+        <div id="sling-tables-container"></div>
         <p class="angle-note">Angles shown as: from horizontal / from vertical. Critical sling = highest tension.</p>
         <p class="angle-note">*Headroom is the geometric distance from the highest LP to the hook point — it does not account for hook block, shackles, or rigging hardware.</p>
         <p class="check-row">Verification — Sum of vertical loads: <strong id="res-vload-check">—</strong> <span class="res-load-unit">t</span> (should equal total load)</p>
+      </div>
+
+      <div class="card" id="beam-details-container" style="display:none">
+        <h2>Beam Details</h2>
+      </div>
+
+      <div class="card" id="intermediate-points-container" style="display:none">
+        <h2>Intermediate Points</h2>
       </div>
 
       <!-- IMAGE/PDF OVERLAY -->
@@ -330,7 +512,14 @@
 
   </div>
 
-  <script src="js/calc.js"></script>
+  <script src="js/calc-core.js"></script>
+  <script src="js/calc-direct.js"></script>
+  <script src="js/calc-spreader.js"></script>
+  <script src="js/calc-stinger.js"></script>
+  <script src="js/calc-liftbeam.js"></script>
+  <script src="js/calc-double-par.js"></script>
+  <script src="js/calc-double-cas.js"></script>
+  <script src="js/calc-router.js"></script>
   <script src="js/diagram.js"></script>
   <script src="js/overlay.js"></script>
   <script src="js/cadimport.js"></script>
