@@ -62,8 +62,22 @@ window.CalcSpreader = (() => {
     // ── 6. COG polygon validation ──
     const cogOutsidePolygon = !C.pointInPolygon2D(cog, liftingPoints);
 
-    // ── 7. Hook position ──
-    const hook = { x: cog.x, y: cog.y, z: 0 };
+    // ── 7. Hook position — in beam plane, projected along beam axis ──
+    // Project COG onto the beam axis line so hook stays in the beam's vertical plane
+    const cogToEndA = { x: cog.x - endA.x, y: cog.y - endA.y };
+    const beamDir = { x: endB.x - endA.x, y: endB.y - endA.y };
+    const beamLen2D = Math.sqrt(beamDir.x * beamDir.x + beamDir.y * beamDir.y);
+    let hookX, hookY;
+    if (beamLen2D > 0.0001) {
+      // Project COG onto beam line: t = dot(cogToEndA, beamDir) / |beamDir|²
+      const t = (cogToEndA.x * beamDir.x + cogToEndA.y * beamDir.y) / (beamLen2D * beamLen2D);
+      hookX = endA.x + t * beamDir.x;
+      hookY = endA.y + t * beamDir.y;
+    } else {
+      hookX = cog.x;
+      hookY = cog.y;
+    }
+    const hook = { x: hookX, y: hookY, z: 0 };
     const hDistAtoHook = C.horizontalDist(endA, hook);
     const hDistBtoHook = C.horizontalDist(endB, hook);
     hook.z = Math.max(
