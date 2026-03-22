@@ -21,8 +21,10 @@ window.CalcDoubleCas = (() => {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
     const {
       masterLength, slaveLengthA, slaveLengthB,
-      masterOrientation, slaveOrientationA, slaveOrientationB
+      masterOrientation, slaveOrientationA, slaveOrientationB,
+      bottomSlingLen
     } = config;
+    const minSlingLen = bottomSlingLen || 2;
     const minAngleRad = C.degToRad(minAngleDeg);
 
     // ── 1. Auto-pair LPs by proximity ──
@@ -49,8 +51,8 @@ window.CalcDoubleCas = (() => {
       const tmp = slaveEndsA.endA; slaveEndsA.endA = slaveEndsA.endB; slaveEndsA.endB = tmp;
     }
     // LP groupALPs[0] → slaveA end A, groupALPs[1] → slaveA end B
-    slaveEndsA.endA.z = C.computeBeamEndZ([groupALPs[0]], slaveEndsA.endA, minAngleRad);
-    slaveEndsA.endB.z = C.computeBeamEndZ([groupALPs[1]], slaveEndsA.endB, minAngleRad);
+    slaveEndsA.endA.z = C.computeBeamEndZWithMinSling([groupALPs[0]], slaveEndsA.endA, minAngleRad, minSlingLen);
+    slaveEndsA.endB.z = C.computeBeamEndZWithMinSling([groupALPs[1]], slaveEndsA.endB, minAngleRad, minSlingLen);
 
     // ── 3. Slave beam B ──
     const slaveAxisB = C.getOrientationAxis(liftingPoints, slaveOrientationB);
@@ -60,8 +62,8 @@ window.CalcDoubleCas = (() => {
     if (C.horizontalDist(groupBLPs[0], slaveEndsB.endB) < C.horizontalDist(groupBLPs[0], slaveEndsB.endA)) {
       const tmp = slaveEndsB.endA; slaveEndsB.endA = slaveEndsB.endB; slaveEndsB.endB = tmp;
     }
-    slaveEndsB.endA.z = C.computeBeamEndZ([groupBLPs[0]], slaveEndsB.endA, minAngleRad);
-    slaveEndsB.endB.z = C.computeBeamEndZ([groupBLPs[1]], slaveEndsB.endB, minAngleRad);
+    slaveEndsB.endA.z = C.computeBeamEndZWithMinSling([groupBLPs[0]], slaveEndsB.endA, minAngleRad, minSlingLen);
+    slaveEndsB.endB.z = C.computeBeamEndZWithMinSling([groupBLPs[1]], slaveEndsB.endB, minAngleRad, minSlingLen);
 
     // ── 4. Master beam ──
     const masterAxis = C.getOrientationAxis(liftingPoints, masterOrientation);

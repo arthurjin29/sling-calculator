@@ -33,7 +33,8 @@ window.CalcDoublePar = (() => {
    */
   function calculate(shared, config) {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
-    const { beamLengthA, beamLengthB, orientationA, orientationB, pairing } = config;
+    const { beamLengthA, beamLengthB, orientationA, orientationB, bottomSlingLen } = config;
+    const minSlingLen = bottomSlingLen || 2;
     const minAngleRad = C.degToRad(minAngleDeg);
 
     // ── 1. Auto-pair LPs by proximity (closest two form a pair) ──
@@ -105,10 +106,10 @@ window.CalcDoublePar = (() => {
 
     // ── 7. Beam end Z from bottom sling min angle ──
     // Each beam end Z governed by its single connected LP
-    beamA1.z = C.computeBeamEndZ([groupALPs[lpA1Idx]], beamA1, minAngleRad);
-    beamA2.z = C.computeBeamEndZ([groupALPs[lpA2Idx]], beamA2, minAngleRad);
-    beamB1.z = C.computeBeamEndZ([groupBLPs[lpB1Idx]], beamB1, minAngleRad);
-    beamB2.z = C.computeBeamEndZ([groupBLPs[lpB2Idx]], beamB2, minAngleRad);
+    beamA1.z = C.computeBeamEndZWithMinSling([groupALPs[lpA1Idx]], beamA1, minAngleRad, minSlingLen);
+    beamA2.z = C.computeBeamEndZWithMinSling([groupALPs[lpA2Idx]], beamA2, minAngleRad, minSlingLen);
+    beamB1.z = C.computeBeamEndZWithMinSling([groupBLPs[lpB1Idx]], beamB1, minAngleRad, minSlingLen);
+    beamB2.z = C.computeBeamEndZWithMinSling([groupBLPs[lpB2Idx]], beamB2, minAngleRad, minSlingLen);
 
     // ── 8. COG polygon validation ──
     const cogOutsidePolygon = !C.pointInPolygon2D(cog, liftingPoints);

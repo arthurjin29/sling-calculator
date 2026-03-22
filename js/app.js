@@ -369,6 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (inputs.configData.slaveLengthA) inputs.configData.slaveLengthA /= M_TO_FT;
     if (inputs.configData.slaveLengthB) inputs.configData.slaveLengthB /= M_TO_FT;
     if (inputs.configData.topSlingLength) inputs.configData.topSlingLength /= M_TO_FT;
+    if (inputs.configData.bottomSlingLen) inputs.configData.bottomSlingLen /= M_TO_FT;
     return result;
   }
 
@@ -541,6 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
         data.beamLengthB = parseRequiredFloat('dpar-beam-length-b', 'Beam B Length');
         data.orientationA = document.getElementById('dpar-orientation-a').value;
         data.orientationB = document.getElementById('dpar-orientation-b').value;
+        data.bottomSlingLen = parseFloat(document.getElementById('dpar-bottom-sling-len').value) || 2;
         break;
       case 'double-cascade':
         data.masterLength = parseRequiredFloat('dcas-master-length', 'Master Beam Length');
@@ -549,6 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
         data.masterOrientation = document.getElementById('dcas-master-orientation').value;
         data.slaveOrientationA = document.getElementById('dcas-slave-orientation-a').value;
         data.slaveOrientationB = document.getElementById('dcas-slave-orientation-b').value;
+        data.bottomSlingLen = parseFloat(document.getElementById('dcas-bottom-sling-len').value) || 2;
         break;
     }
 

@@ -268,6 +268,24 @@ const CalcCore = (() => {
   }
 
   /**
+   * Compute beam end Z with both min angle AND min sling length constraints.
+   * Returns the Z that satisfies both.
+   */
+  function computeBeamEndZWithMinSling(groupLPs, beamEndXY, minAngleRad, minSlingLen) {
+    let maxZ = -Infinity;
+    for (const lp of groupLPs) {
+      const hd = horizontalDist(lp, beamEndXY);
+      // From min angle constraint
+      const zFromAngle = lp.z + hd * Math.tan(minAngleRad);
+      // From min sling length constraint
+      const zFromLen = (minSlingLen > hd) ? lp.z + Math.sqrt(minSlingLen * minSlingLen - hd * hd) : lp.z;
+      const requiredZ = Math.max(zFromAngle, zFromLen);
+      if (requiredZ > maxZ) maxZ = requiredZ;
+    }
+    return maxZ;
+  }
+
+  /**
    * Compute vertical load from raw tension and endpoint geometry.
    * Avoids rounding error from using rounded angles.
    */
@@ -287,6 +305,6 @@ const CalcCore = (() => {
     calcLoadDistribution, calcTwoSlingTension,
     buildSling, computeVerticalLoad,
     getOrientationAxis,
-    computeBeamEnds, computeBeamEndZ
+    computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling
   };
 })();
