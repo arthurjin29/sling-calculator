@@ -1,164 +1,187 @@
 /**
  * Lifting Beam Calculation
  *
- * Single pickup point on beam at COG XY. Hook connects directly to beam
- * (zero-length vertical connection). Beam is horizontal — both ends at
- * the same Z. Only bottom slings (4 total, LP → beam end). Beam bending
- * capacity is NOT checked.
+ * Single pickup point on beam at COG position (projected onto beam axis).
+ * Hook connects directly to beam (zero-length vertical connection).
+ * Beam is horizontal — both ends at the same Z.
+ * Only bottom slings (4 total, each LP to nearest beam end).
+ * Beam bending capacity is NOT checked.
  */
 
 const CalcLiftBeam = (() => {
 
-  /**
-   * @param {object} shared - { liftingPoints, cog, minAngleDeg, totalLoad }
-   * @param {object} config - { beamLength, orientation, pairing: { groupA: [idx,idx], groupB: [idx,idx] } }
-   *                          pairing indices are 1-based
-   * @returns {object} standardised result
-   */
+  const C = CalcCore;
+
   function calculate(shared, config) {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
-    const { beamLength, orientation, pairing } = config;
-    const minAngleRad = CalcCore.degToRad(minAngleDeg);
+    const { beamLength, orientation } = config;
+    const minAngleRad = C.degToRad(minAngleDeg);
 
-    // 1. Extract LP groups (convert 1-based to 0-based)
-    const groupAIndices = pairing.groupA.map(i => i - 1);
-    const groupBIndices = pairing.groupB.map(i => i - 1);
-    const groupALPs = groupAIndices.map(i => liftingPoints[i]);
-    const groupBLPs = groupBIndices.map(i => liftingPoints[i]);
+    // 1. Beam centre = centroid of all 4 LPs
+    const cx = liftingPoints.reduce((s, p) => s + p.x, 0) / 4;
+    const cy = liftingPoints.reduce((s, p) => s + p.y, 0) / 4;
+    const beamCentre = { x: cx, y: cy, z: 0 };
 
-    // 2. Group midpoints
-    const midA = CalcCore.midpoint(groupALPs[0], groupALPs[1]);
-    const midB = CalcCore.midpoint(groupBLPs[0], groupBLPs[1]);
+    // 2. Beam axis
+    const axis = C.getOrientationAxis(liftingPoints, orientation);
 
-    // 3. Beam axis
-    const axis = CalcCore.getOrientationAxis(liftingPoints, orientation);
+    // 3. Beam ends
+    let { endA, endB } = C.computeBeamEnds(beamCentre, beamLength, axis);
 
-    // 4. Beam centre XY = midpoint of the two group midpoints
-    const beamCentre = CalcCore.midpoint(midA, midB);
-
-    // 5. Beam ends
-    let { endA, endB } = CalcCore.computeBeamEnds(beamCentre, beamLength, axis);
-
-    // 6. Assign End A closest to Group A midpoint (swap if needed)
-    const distAtoEndA = CalcCore.horizontalDist(midA, endA);
-    const distAtoEndB = CalcCore.horizontalDist(midA, endB);
-    if (distAtoEndB < distAtoEndA) {
-      const tmp = endA;
-      endA = endB;
-      endB = tmp;
+    // 4. Auto-assign each LP to nearest beam end
+    const groupA = [];
+    const groupB = [];
+    for (let i = 0; i < liftingPoints.length; i++) {
+      const lp = liftingPoints[i];
+      const dA = C.horizontalDist(lp, endA);
+      const dB = C.horizontalDist(lp, endB);
+      if (dA <= dB) {
+        groupA.push({ lp, idx: i, label: 'LP' + (i + 1) });
+      } else {
+        groupB.push({ lp, idx: i, label: 'LP' + (i + 1) });
+      }
     }
 
-    // 7. Beam end Z per group
-    const endAz = CalcCore.computeBeamEndZ(groupALPs, endA, minAngleRad);
-    const endBz = CalcCore.computeBeamEndZ(groupBLPs, endB, minAngleRad);
+    // Fallback if all LPs on one side
+    if (groupA.length === 0 || groupB.length === 0) {
+      const ranked = liftingPoints.map((lp, i) => ({
+        lp, idx: i, label: 'LP' + (i + 1),
+        dA: C.horizontalDist(lp, endA)
+      })).sort((a, b) => a.dA - b.dA);
+      groupA.length = 0;
+      groupB.length = 0;
+      ranked.slice(0, 2).forEach(r => groupA.push(r));
+      ranked.slice(2).forEach(r => groupB.push(r));
+    }
 
-    // 8. Horizontal beam: beamZ = max of the two computed end Zs
+    // 5. Beam end Z per group
+    const endAz = C.computeBeamEndZ(groupA.map(g => g.lp), endA, minAngleRad);
+    const endBz = C.computeBeamEndZ(groupB.map(g => g.lp), endB, minAngleRad);
+
+    // 6. Horizontal beam: both ends at max Z
     const beamZ = Math.max(endAz, endBz);
     endA.z = beamZ;
     endB.z = beamZ;
 
-    // 9. COG polygon validation
-    const cogInsidePolygon = CalcCore.pointInPolygon2D(
+    // 7. COG polygon validation
+    const cogInsidePolygon = C.pointInPolygon2D(
       cog, liftingPoints.map(lp => ({ x: lp.x, y: lp.y }))
     );
 
-    // 10. Pickup point
-    const pickupPoint = { x: cog.x, y: cog.y, z: beamZ };
+    // 8. Pickup point — project COG onto beam axis
+    const cogToEndA = { x: cog.x - endA.x, y: cog.y - endA.y };
+    const beamDir = { x: endB.x - endA.x, y: endB.y - endA.y };
+    const beamLen2D = Math.sqrt(beamDir.x * beamDir.x + beamDir.y * beamDir.y);
+    let pickupX, pickupY;
+    if (beamLen2D > 0.0001) {
+      const t = (cogToEndA.x * beamDir.x + cogToEndA.y * beamDir.y) / (beamLen2D * beamLen2D);
+      pickupX = endA.x + t * beamDir.x;
+      pickupY = endA.y + t * beamDir.y;
+    } else {
+      pickupX = cog.x;
+      pickupY = cog.y;
+    }
+    const pickupPoint = { x: pickupX, y: pickupY, z: beamZ };
 
-    // 11. Hook (same as pickup — zero-length connection)
-    const hook = { x: cog.x, y: cog.y, z: beamZ };
+    // 9. Hook = pickup (zero-length connection)
+    const hook = { x: pickupX, y: pickupY, z: beamZ };
 
-    // 12. Bottom slings (4 total): LP → beam end
+    // 10. Bottom slings — each LP to nearest beam end
     const slings = [];
     let slingId = 1;
 
-    // Group A slings → Beam End A
-    for (const idx of groupAIndices) {
-      const lp = liftingPoints[idx];
-      const from = { x: lp.x, y: lp.y, z: lp.z, label: `LP${idx + 1}` };
-      const to = { x: endA.x, y: endA.y, z: endA.z, label: 'Beam End A' };
-      slings.push(CalcCore.buildSling(slingId++, from, to));
+    for (const g of groupA) {
+      slings.push(C.buildSling(slingId++,
+        { x: g.lp.x, y: g.lp.y, z: g.lp.z, label: g.label },
+        { x: endA.x, y: endA.y, z: endA.z, label: 'Beam End A' }
+      ));
+    }
+    for (const g of groupB) {
+      slings.push(C.buildSling(slingId++,
+        { x: g.lp.x, y: g.lp.y, z: g.lp.z, label: g.label },
+        { x: endB.x, y: endB.y, z: endB.z, label: 'Beam End B' }
+      ));
     }
 
-    // Group B slings → Beam End B
-    for (const idx of groupBIndices) {
-      const lp = liftingPoints[idx];
-      const from = { x: lp.x, y: lp.y, z: lp.z, label: `LP${idx + 1}` };
-      const to = { x: endB.x, y: endB.y, z: endB.z, label: 'Beam End B' };
-      slings.push(CalcCore.buildSling(slingId++, from, to));
-    }
+    // 11. Load at each beam end via moment balance along beam
+    const distPickupToEndA = C.horizontalDist(pickupPoint, endA);
+    const distPickupToEndB = C.horizontalDist(pickupPoint, endB);
+    const totalBeamSpan = distPickupToEndA + distPickupToEndB;
+    const loadAtEndA = totalBeamSpan > 0.0001 ? totalLoad * distPickupToEndB / totalBeamSpan : totalLoad / 2;
+    const loadAtEndB = totalBeamSpan > 0.0001 ? totalLoad * distPickupToEndA / totalBeamSpan : totalLoad / 2;
 
-    // 13. Load at each beam end via moment balance
-    //     The total load hangs from the pickup point (COG XY).
-    //     Load at End A = totalLoad * distFromPickupToEndB / beamLength
-    //     Load at End B = totalLoad * distFromPickupToEndA / beamLength
-    const distPickupToEndA = CalcCore.horizontalDist(pickupPoint, endA);
-    const distPickupToEndB = CalcCore.horizontalDist(pickupPoint, endB);
-    const loadAtEndA = totalLoad * distPickupToEndB / beamLength;
-    const loadAtEndB = totalLoad * distPickupToEndA / beamLength;
-
-    // 2-sling tension per group
-    const groupATensions = CalcCore.calcTwoSlingTension(
-      groupALPs[0], groupALPs[1], endA, loadAtEndA
-    );
-    const groupBTensions = CalcCore.calcTwoSlingTension(
-      groupBLPs[0], groupBLPs[1], endB, loadAtEndB
-    );
-
-    // 14. Set tension and verticalLoad on each sling
-    //     slings[0..1] = group A, slings[2..3] = group B
+    // 12. Bottom sling tensions per group
     let hasNegativeTension = false;
+    const groupALPs = groupA.map(g => g.lp);
+    const groupBLPs = groupB.map(g => g.lp);
+    const bOffset = groupA.length;
 
-    for (let i = 0; i < 2; i++) {
-      slings[i].tension = CalcCore.round4(groupATensions[i]);
-      if (groupATensions[i] < -0.001) hasNegativeTension = true;
-      slings[i].verticalLoad = CalcCore.round4(CalcCore.computeVerticalLoad(groupATensions[i], slings[i].from, slings[i].to));
-    }
-    for (let i = 0; i < 2; i++) {
-      slings[2 + i].tension = CalcCore.round4(groupBTensions[i]);
-      if (groupBTensions[i] < -0.001) hasNegativeTension = true;
-      slings[2 + i].verticalLoad = CalcCore.round4(CalcCore.computeVerticalLoad(groupBTensions[i], slings[2 + i].from, slings[2 + i].to));
+    if (groupALPs.length === 2) {
+      const [t0, t1] = C.calcTwoSlingTension(groupALPs[0], groupALPs[1], endA, loadAtEndA);
+      slings[0].tension = C.round4(t0);
+      slings[1].tension = C.round4(t1);
+      if (t0 < -0.001 || t1 < -0.001) hasNegativeTension = true;
+    } else if (groupALPs.length === 1) {
+      const len = C.dist3D(groupALPs[0], endA);
+      const vd = Math.abs(endA.z - groupALPs[0].z);
+      slings[0].tension = C.round4(vd > 1e-9 ? loadAtEndA * len / vd : loadAtEndA);
+    } else {
+      const tensions = C.calcLoadDistribution(groupALPs, endA, loadAtEndA);
+      for (let i = 0; i < groupA.length; i++) slings[i].tension = C.round4(tensions[i]);
     }
 
-    // 15. Critical sling (bottom tier only — it's the only tier)
+    if (groupBLPs.length === 2) {
+      const [t0, t1] = C.calcTwoSlingTension(groupBLPs[0], groupBLPs[1], endB, loadAtEndB);
+      slings[bOffset].tension = C.round4(t0);
+      slings[bOffset + 1].tension = C.round4(t1);
+      if (t0 < -0.001 || t1 < -0.001) hasNegativeTension = true;
+    } else if (groupBLPs.length === 1) {
+      const len = C.dist3D(groupBLPs[0], endB);
+      const vd = Math.abs(endB.z - groupBLPs[0].z);
+      slings[bOffset].tension = C.round4(vd > 1e-9 ? loadAtEndB * len / vd : loadAtEndB);
+    } else {
+      const tensions = C.calcLoadDistribution(groupBLPs, endB, loadAtEndB);
+      for (let i = 0; i < groupB.length; i++) slings[bOffset + i].tension = C.round4(tensions[i]);
+    }
+
+    // 13. Vertical loads
+    for (const s of slings) {
+      s.verticalLoad = C.round4(C.computeVerticalLoad(s.tension, s.from, s.to));
+      if (s.tension < -0.001) hasNegativeTension = true;
+    }
+
+    // 14. Critical sling
     let maxTension = -Infinity;
     let criticalIndex = 0;
     slings.forEach((s, i) => {
-      if (s.tension > maxTension) {
-        maxTension = s.tension;
-        criticalIndex = i;
-      }
+      if (s.tension > maxTension) { maxTension = s.tension; criticalIndex = i; }
     });
     slings[criticalIndex].isCritical = true;
 
-    // 16. Headroom: beamZ - max LP Z
+    // 15. Headroom
     const maxLPz = Math.max(...liftingPoints.map(lp => lp.z));
-    const headroom = beamZ - maxLPz;
 
     return {
       configType: 'lifting-beam',
       hook,
-      hookHeight: CalcCore.round4(beamZ),
-      headroom: CalcCore.round4(headroom),
-      heightAboveCOG: CalcCore.round4(beamZ - cog.z),
+      hookHeight: C.round4(beamZ),
+      headroom: C.round4(beamZ - maxLPz),
+      heightAboveCOG: C.round4(beamZ - cog.z),
       totalLoad,
       minAngleDeg,
       criticalSling: { tier: 'bottom', id: slings[criticalIndex].id },
-      tiers: [{
-        name: 'Bottom Slings',
-        slings
-      }],
+      tiers: [{ name: 'Bottom Slings', slings }],
       beams: [{
         name: 'Lifting Beam',
-        endA: { x: endA.x, y: endA.y, z: endA.z },
-        endB: { x: endB.x, y: endB.y, z: endB.z },
+        endA: { x: C.round4(endA.x), y: C.round4(endA.y), z: C.round4(endA.z) },
+        endB: { x: C.round4(endB.x), y: C.round4(endB.y), z: C.round4(endB.z) },
         length: beamLength,
-        pickupPoint: { x: cog.x, y: cog.y, z: beamZ }
+        pickupPoint: { x: C.round4(pickupX), y: C.round4(pickupY), z: C.round4(beamZ) }
       }],
       intermediatePoints: [
-        { x: endA.x, y: endA.y, z: endA.z, label: 'Beam End A' },
-        { x: endB.x, y: endB.y, z: endB.z, label: 'Beam End B' },
-        { x: cog.x, y: cog.y, z: beamZ, label: 'Pickup' }
+        { x: C.round4(endA.x), y: C.round4(endA.y), z: C.round4(endA.z), label: 'Beam End A' },
+        { x: C.round4(endB.x), y: C.round4(endB.y), z: C.round4(endB.z), label: 'Beam End B' },
+        { x: C.round4(pickupX), y: C.round4(pickupY), z: C.round4(beamZ), label: 'Pickup' }
       ],
       warnings: {
         cogOutsidePolygon: !cogInsidePolygon,
