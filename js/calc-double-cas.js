@@ -53,13 +53,21 @@ window.CalcDoubleCas = (() => {
       const spreadAtZero = C.horizontalDist(lp0, lp1);
 
       if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
-        // Beam >= LP spread: beam ends directly above LPs, vertical bottom slings
-        const beamZ = Math.max(lp0.z, lp1.z) + minSlingLen;
-        return {
-          end0: { x: lp0.x, y: lp0.y, z: beamZ },
-          end1: { x: lp1.x, y: lp1.y, z: beamZ },
-          t: 0
-        };
+        // Beam >= LP spread: beam handles the short direction entirely.
+        // Bottom slings stay angled in the long direction (X-Z plane).
+        function placeOnXZpath(lp) {
+          const dx = hook.x - lp.x;
+          const dz = hook.z - lp.z;
+          const xzDist = Math.sqrt(dx * dx + dz * dz);
+          if (xzDist < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
+          const frac = Math.min(minSlingLen / xzDist, 0.95);
+          return {
+            x: lp.x + frac * dx,
+            y: lp.y,
+            z: lp.z + frac * dz
+          };
+        }
+        return { end0: placeOnXZpath(lp0), end1: placeOnXZpath(lp1), t: 0 };
       }
 
       // Beam shorter than LP spread: place ends on direct sling paths
