@@ -114,18 +114,13 @@ window.CalcDoublePar = (() => {
     // ── 8. COG polygon validation ──
     const cogOutsidePolygon = !C.pointInPolygon2D(cog, liftingPoints);
 
-    // ── 9. Hook position ──
-    // hookXY = COG XY; hookZ from top sling geometry (4 beam ends → hook)
-    const hook = { x: cog.x, y: cog.y, z: 0 };
+    // ── 9. Hook position — same as 4-leg direct ──
+    // The spreader beams handle the short direction; hook height matches direct lift
+    const hookXY = { x: cog.x, y: cog.y };
+    const hDists = liftingPoints.map(lp => C.horizontalDist(lp, hookXY));
+    const requiredHookZs = liftingPoints.map((lp, i) => lp.z + hDists[i] * Math.tan(minAngleRad));
+    const hook = { x: cog.x, y: cog.y, z: Math.max(...requiredHookZs) };
     const allBeamEnds = [beamA1, beamA2, beamB1, beamB2];
-
-    let maxHookZ = -Infinity;
-    for (const be of allBeamEnds) {
-      const hd = C.horizontalDist(be, hook);
-      const requiredZ = be.z + hd * Math.tan(minAngleRad);
-      if (requiredZ > maxHookZ) maxHookZ = requiredZ;
-    }
-    hook.z = maxHookZ;
 
     // ── 10. Bottom slings (4 total, 1-to-1 LP → beam end) ──
     const bottomSlings = [];
