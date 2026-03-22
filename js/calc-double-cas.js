@@ -51,14 +51,20 @@ window.CalcDoubleCas = (() => {
     // ── 3. Place slave beam ends on direct sling paths ──
     function computeBeamEndPair(lp0, lp1, beamLength) {
       const spreadAtZero = C.horizontalDist(lp0, lp1);
-      let t;
-      if (spreadAtZero < 0.0001) {
-        t = 0.5;
-      } else if (beamLength >= spreadAtZero) {
-        t = 0;
-      } else {
-        t = 1 - beamLength / spreadAtZero;
+
+      if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
+        // Beam >= LP spread: beam ends directly above LPs, vertical bottom slings
+        const beamZ = Math.max(lp0.z, lp1.z) + minSlingLen;
+        return {
+          end0: { x: lp0.x, y: lp0.y, z: beamZ },
+          end1: { x: lp1.x, y: lp1.y, z: beamZ },
+          t: 0
+        };
       }
+
+      // Beam shorter than LP spread: place ends on direct sling paths
+      let t = 1 - beamLength / spreadAtZero;
+
       const fullLen0 = C.dist3D(lp0, hook);
       const fullLen1 = C.dist3D(lp1, hook);
       const minT = Math.max(

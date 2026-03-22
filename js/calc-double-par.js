@@ -49,22 +49,21 @@ window.CalcDoublePar = (() => {
     // where the distance between the two path points = beam length.
     // Path: P(t) = LP + t * (hook - LP), distance between pair at t decreases with t.
     function computeBeamEndPair(lp0, lp1, beamLength) {
-      // At parameter t:
-      // P0(t) = lp0 + t*(hook - lp0)
-      // P1(t) = lp1 + t*(hook - lp1)
-      // dist(P0, P1) = |lp1 - lp0| * (1-t) in XY (both converge to same hook)
-      // But in 3D, z components are the same so only XY matters for horizontal spread
       const spreadAtZero = C.horizontalDist(lp0, lp1);
 
-      let t;
-      if (spreadAtZero < 0.0001) {
-        t = 0.5; // degenerate — LPs at same position
-      } else if (beamLength >= spreadAtZero) {
-        // Beam longer than LP spread — place near LPs with min sling length
-        t = 0;
-      } else {
-        t = 1 - beamLength / spreadAtZero;
+      if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
+        // Beam >= LP spread: beam ends directly above LPs, vertical bottom slings
+        const beamZ = Math.max(lp0.z, lp1.z) + minSlingLen;
+        return {
+          end0: { x: lp0.x, y: lp0.y, z: beamZ },
+          end1: { x: lp1.x, y: lp1.y, z: beamZ },
+          t: 0
+        };
       }
+
+      // Beam shorter than LP spread: place ends on direct sling paths
+      // At parameter t, horizontal spread = spreadAtZero * (1-t)
+      let t = 1 - beamLength / spreadAtZero;
 
       // Enforce minimum bottom sling length
       const fullLen0 = C.dist3D(lp0, hook);
@@ -74,19 +73,21 @@ window.CalcDoublePar = (() => {
         fullLen1 > 0 ? minSlingLen / fullLen1 : 0
       );
       t = Math.max(t, minT);
-      t = Math.min(t, 0.95); // don't go all the way to hook
+      t = Math.min(t, 0.95);
 
-      const end0 = {
-        x: lp0.x + t * (hook.x - lp0.x),
-        y: lp0.y + t * (hook.y - lp0.y),
-        z: lp0.z + t * (hook.z - lp0.z)
+      return {
+        end0: {
+          x: lp0.x + t * (hook.x - lp0.x),
+          y: lp0.y + t * (hook.y - lp0.y),
+          z: lp0.z + t * (hook.z - lp0.z)
+        },
+        end1: {
+          x: lp1.x + t * (hook.x - lp1.x),
+          y: lp1.y + t * (hook.y - lp1.y),
+          z: lp1.z + t * (hook.z - lp1.z)
+        },
+        t
       };
-      const end1 = {
-        x: lp1.x + t * (hook.x - lp1.x),
-        y: lp1.y + t * (hook.y - lp1.y),
-        z: lp1.z + t * (hook.z - lp1.z)
-      };
-      return { end0, end1, t };
     }
 
     const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], beamLengthA);
