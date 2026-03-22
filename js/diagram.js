@@ -207,14 +207,41 @@ const SlingDiagram = (() => {
     const beams = results.beams || [];
     const intermediatePoints = results.intermediatePoints || [];
 
-    // For elevation, project onto a vertical plane through the hook
-    // X-axis = horizontal distance from hook (signed), Y-axis = Z (height)
+    // For elevation, project onto a vertical plane perpendicular to the viewing direction.
+    // For beam configs: view along the beam axis (so beam appears as horizontal line).
+    // For direct/stinger: view along the narrowest LP spread (maximises separation).
+    // The projection axis is the direction we project ONTO (horizontal axis in elevation).
+    let projAxis;
+    if (beams.length > 0) {
+      // View perpendicular to beam → project onto beam axis direction
+      const b = beams[0];
+      const bx = b.endB.x - b.endA.x;
+      const by = b.endB.y - b.endA.y;
+      const bLen = Math.sqrt(bx * bx + by * by);
+      projAxis = bLen > 0.0001 ? { x: bx / bLen, y: by / bLen } : { x: 1, y: 0 };
+    } else {
+      // Use the widest LP spread direction
+      let maxSpread = 0;
+      projAxis = { x: 1, y: 0 };
+      for (let i = 0; i < lps.length; i++) {
+        for (let j = i + 1; j < lps.length; j++) {
+          const dx = lps[j].x - lps[i].x;
+          const dy = lps[j].y - lps[i].y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d > maxSpread) {
+            maxSpread = d;
+            projAxis = { x: dx / d, y: dy / d };
+          }
+        }
+      }
+    }
+
+    // Project a 3D point onto the elevation plane:
+    // h = signed distance along projAxis from hook, z = height
     function projectToElevation(pt) {
       const dx = pt.x - hook.x;
       const dy = pt.y - hook.y;
-      const hDist = Math.sqrt(dx * dx + dy * dy);
-      const angle = Math.atan2(dy, dx);
-      const signedH = angle > 0 ? -hDist : hDist;
+      const signedH = dx * projAxis.x + dy * projAxis.y; // dot product
       return { h: signedH, z: pt.z };
     }
 
