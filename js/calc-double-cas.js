@@ -26,8 +26,8 @@ window.CalcDoubleCas = (() => {
   function computeBeamEndPair(lp0, lp1, target, beamLength, minSlingLen) {
     const spreadAtZero = C.horizontalDist(lp0, lp1);
 
-    if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
-      // Beam >= LP spread: place ends along full 3D path from LP toward target
+    if (spreadAtZero < 0.0001) {
+      // Degenerate: LPs at same position, place along path using minSlingLen
       function placeOnPath(lp) {
         const dx = target.x - lp.x;
         const dy = target.y - lp.y;
@@ -44,8 +44,10 @@ window.CalcDoubleCas = (() => {
       return { end0: placeOnPath(lp0), end1: placeOnPath(lp1) };
     }
 
-    // Beam shorter than LP spread: place ends on direct sling paths
-    let t = 1 - beamLength / spreadAtZero;
+    // Place ends on direct sling paths at parameter t.
+    // t = 1 - beamLength/spread: when beam < spread, ends move toward target.
+    // When beam >= spread, t <= 0, clamped by minSlingLen enforcement below.
+    let t = Math.max(0, 1 - beamLength / spreadAtZero);
 
     // Enforce minimum bottom sling length
     const fullLen0 = C.dist3D(lp0, target);
