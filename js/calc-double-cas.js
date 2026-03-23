@@ -24,36 +24,45 @@ window.CalcDoubleCas = (() => {
    * Uses full 3D path (including Y component) for correct placement.
    */
   /**
-   * Place beam ends on collinear sling paths (LP → slave end → target).
+   * Place slave beam ends centered under target (master beam end),
+   * oriented along LP pair axis, at exact user-specified beam length.
+   * Height set by minimum bottom sling length via Pythagoras.
    *
-   * Beam length is a HARD constraint — the actual beam used.
-   * Bottom sling length is a MINIMUM — warn if geometry can't meet it.
+   * Beam length = hard constraint (exact).
+   * Bottom sling length = minimum (actual slings may be longer).
    */
-  function computeBeamEndPair(lp0, lp1, target, beamLength) {
-    const spreadAtZero = C.horizontalDist(lp0, lp1);
+  function computeBeamEndPair(lp0, lp1, target, beamLength, minSlingLen) {
+    // Slave beam axis: along LP pair direction
+    const axX = lp1.x - lp0.x;
+    const axY = lp1.y - lp0.y;
+    const axLen = Math.sqrt(axX * axX + axY * axY) || 1;
+    const uX = axX / axLen;
+    const uY = axY / axLen;
 
-    // t positions ends on converging sling paths.
-    // At parameter t: horizontal spread = spreadAtZero * (1-t)
-    // For requested beamLength: t = 1 - beamLength / spreadAtZero
-    let t;
-    if (spreadAtZero < 0.0001) {
-      t = 0;
+    // Beam centered under target at exact user length
+    const half = beamLength / 2;
+    const end0xy = { x: target.x - uX * half, y: target.y - uY * half };
+    const end1xy = { x: target.x + uX * half, y: target.y + uY * half };
+
+    // Height: ensure all bottom slings >= minSlingLen
+    // For each LP→beam end: rise = sqrt(minSlingLen² - hDist²)
+    const avgLPz = (lp0.z + lp1.z) / 2;
+    const hDist0 = C.horizontalDist(lp0, end0xy);
+    const hDist1 = C.horizontalDist(lp1, end1xy);
+    const maxHDist = Math.max(hDist0, hDist1);
+
+    let rise;
+    if (minSlingLen > maxHDist) {
+      rise = Math.sqrt(minSlingLen * minSlingLen - maxHDist * maxHDist);
     } else {
-      t = Math.max(0, 1 - beamLength / spreadAtZero);
+      // hDist exceeds sling length — sling goes mostly horizontal
+      rise = minSlingLen * 0.5;
     }
-    t = Math.min(t, 0.95);
 
+    const slaveZ = avgLPz + Math.max(rise, 0.1);
     return {
-      end0: {
-        x: lp0.x + t * (target.x - lp0.x),
-        y: lp0.y + t * (target.y - lp0.y),
-        z: lp0.z + t * (target.z - lp0.z)
-      },
-      end1: {
-        x: lp1.x + t * (target.x - lp1.x),
-        y: lp1.y + t * (target.y - lp1.y),
-        z: lp1.z + t * (target.z - lp1.z)
-      }
+      end0: { ...end0xy, z: slaveZ },
+      end1: { ...end1xy, z: slaveZ }
     };
   }
 
@@ -124,8 +133,8 @@ window.CalcDoubleCas = (() => {
       const mEndA = { ...masterEndAxy, z: masterZ };
       const mEndB = { ...masterEndBxy, z: masterZ };
 
-      const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], mEndA, slaveLengthA);
-      const pairB = computeBeamEndPair(groupBLPs[0], groupBLPs[1], mEndB, slaveLengthB);
+      const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], mEndA, slaveLengthA, minSlingLen);
+      const pairB = computeBeamEndPair(groupBLPs[0], groupBLPs[1], mEndB, slaveLengthB, minSlingLen);
 
       slaveA1 = pairA.end0;
       slaveA2 = pairA.end1;
