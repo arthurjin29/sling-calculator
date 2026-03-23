@@ -29,6 +29,10 @@ const CalcCore = (() => {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 };
   }
 
+  function lerp3D(a, b, t) {
+    return { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y), z: a.z + t * (b.z - a.z) };
+  }
+
   /**
    * Ray-casting point-in-polygon test (2D, XY plane).
    */
@@ -298,7 +302,7 @@ const CalcCore = (() => {
 
   return {
     degToRad, radToDeg, round2, round4,
-    horizontalDist, dist3D, midpoint,
+    horizontalDist, dist3D, midpoint, lerp3D,
     pointInPolygon2D,
     mat3x3Inverse, mat2x2Inverse,
     transposeNxM, matMxNMultiply,
