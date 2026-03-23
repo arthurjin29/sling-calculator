@@ -33,47 +33,119 @@ const CalcStinger = (() => {
     const groupALPs = groupAIndices.map(i => liftingPoints[i]);
     const groupBLPs = groupBIndices.map(i => liftingPoints[i]);
 
-    // --- 2. Compute hook from 4-leg direct geometry ---
+    // --- 2. Reference hook from 4-leg direct geometry ---
     const hookXY = { x: cog.x, y: cog.y };
     const hDists = liftingPoints.map(lp => CalcCore.horizontalDist(lp, hookXY));
     const requiredHookZs = liftingPoints.map((lp, i) => lp.z + hDists[i] * Math.tan(minAngleRad));
-    const hookZ = Math.max(...requiredHookZs);
-    const hook = { x: hookXY.x, y: hookXY.y, z: hookZ };
+    const refHookZ = Math.max(...requiredHookZs);
+    const refHook = { x: hookXY.x, y: hookXY.y, z: refHookZ };
 
     // --- 3. Pair centres ---
     const pairCentreA = CalcCore.midpoint(groupALPs[0], groupALPs[1]);
     const pairCentreB = CalcCore.midpoint(groupBLPs[0], groupBLPs[1]);
 
-    // --- 4. Compute apex on the line from pair centre to hook ---
-    // Full distance from pair centre to hook
-    const fullDistA = CalcCore.dist3D(pairCentreA, hook);
-    const fullDistB = CalcCore.dist3D(pairCentreB, hook);
+    // --- 4. Iteratively find apex + hook ---
+    // Constraints:
+    //   - Apex on the line from pairCentre to hook (coplanar Y-shape)
+    //   - Bottom sling angles >= min angle (sets apex position on line)
+    //   - Top sling length = distance from apex to hook (sets hook height)
+    // Hook position affects the line, which affects the apex, which affects hook → iterate.
 
-    // Top sling length determines where on the path the split occurs
     let topLen = config.topSlingLength || 0;
+    let hookZ = refHookZ; // start with 4-leg direct height
 
-    // Default: halfway (t = 0.5)
-    let tA, tB;
-    if (topLen <= 0) {
-      tA = 0.5;
-      tB = 0.5;
-    } else {
-      // t = 1 - topSlingLength / fullDist
-      tA = Math.max(0.05, Math.min(0.95, 1 - topLen / fullDistA));
-      tB = Math.max(0.05, Math.min(0.95, 1 - topLen / fullDistB));
+    function findApexOnLine(lp0, lp1, pairCentre, hookPt) {
+      let lo = 0.01, hi = 0.99;
+      for (let i = 0; i < 30; i++) {
+        const t = (lo + hi) / 2;
+        const apex = {
+          x: pairCentre.x + t * (hookPt.x - pairCentre.x),
+          y: pairCentre.y + t * (hookPt.y - pairCentre.y),
+          z: pairCentre.z + t * (hookPt.z - pairCentre.z)
+        };
+        const hd0 = CalcCore.horizontalDist(lp0, apex);
+        const vd0 = apex.z - lp0.z;
+        const hd1 = CalcCore.horizontalDist(lp1, apex);
+        const vd1 = apex.z - lp1.z;
+        const a0 = hd0 > 0.001 ? Math.atan2(vd0, hd0) : Math.PI / 2;
+        const a1 = hd1 > 0.001 ? Math.atan2(vd1, hd1) : Math.PI / 2;
+        if (Math.min(a0, a1) < minAngleRad) {
+          lo = t;
+        } else {
+          hi = t;
+        }
+      }
+      return hi;
     }
 
-    // Apex = pairCentre + t * (hook - pairCentre)
-    const apexA = {
-      x: pairCentreA.x + tA * (hook.x - pairCentreA.x),
-      y: pairCentreA.y + tA * (hook.y - pairCentreA.y),
-      z: pairCentreA.z + tA * (hook.z - pairCentreA.z)
-    };
-    const apexB = {
-      x: pairCentreB.x + tB * (hook.x - pairCentreB.x),
-      y: pairCentreB.y + tB * (hook.y - pairCentreB.y),
-      z: pairCentreB.z + tB * (hook.z - pairCentreB.z)
-    };
+    let apexA, apexB;
+    if (topLen <= 0) {
+      // Default: apex halfway on line from pairCentre to refHook
+      apexA = {
+        x: pairCentreA.x + 0.5 * (refHook.x - pairCentreA.x),
+        y: pairCentreA.y + 0.5 * (refHook.y - pairCentreA.y),
+        z: pairCentreA.z + 0.5 * (refHook.z - pairCentreA.z)
+      };
+      apexB = {
+        x: pairCentreB.x + 0.5 * (refHook.x - pairCentreB.x),
+        y: pairCentreB.y + 0.5 * (refHook.y - pairCentreB.y),
+        z: pairCentreB.z + 0.5 * (refHook.z - pairCentreB.z)
+      };
+      hookZ = refHookZ;
+    } else {
+      // Step 1: Iterate to find hookZ where both top slings = topLen,
+      // with each apex on its pair-centre-to-hook line at min angle.
+      for (let iter = 0; iter < 15; iter++) {
+        const currentHook = { x: hookXY.x, y: hookXY.y, z: hookZ };
+
+        const tA = findApexOnLine(groupALPs[0], groupALPs[1], pairCentreA, currentHook);
+        const tB = findApexOnLine(groupBLPs[0], groupBLPs[1], pairCentreB, currentHook);
+
+        apexA = {
+          x: pairCentreA.x + tA * (currentHook.x - pairCentreA.x),
+          y: pairCentreA.y + tA * (currentHook.y - pairCentreA.y),
+          z: pairCentreA.z + tA * (currentHook.z - pairCentreA.z)
+        };
+        apexB = {
+          x: pairCentreB.x + tB * (currentHook.x - pairCentreB.x),
+          y: pairCentreB.y + tB * (currentHook.y - pairCentreB.y),
+          z: pairCentreB.z + tB * (currentHook.z - pairCentreB.z)
+        };
+
+        const hdA = CalcCore.horizontalDist(apexA, hookXY);
+        const hdB = CalcCore.horizontalDist(apexB, hookXY);
+        const hzA = topLen > hdA ? apexA.z + Math.sqrt(topLen * topLen - hdA * hdA) : apexA.z + hdA * Math.tan(minAngleRad);
+        const hzB = topLen > hdB ? apexB.z + Math.sqrt(topLen * topLen - hdB * hdB) : apexB.z + hdB * Math.tan(minAngleRad);
+        const newHookZ = Math.max(hzA, hzB);
+
+        if (Math.abs(newHookZ - hookZ) < 0.001) break;
+        hookZ = newHookZ;
+      }
+
+      // Step 2: Reposition both apexes so each top sling = exactly topLen.
+      // The governing side is already correct. The other side's apex moves
+      // along its pair-centre-to-hook line so dist(apex, hook) = topLen.
+      // Bottom slings on that side will be steeper than min angle (that's OK).
+      const finalHook = { x: hookXY.x, y: hookXY.y, z: hookZ };
+
+      function placeApexAtTopLen(pairCentre) {
+        // Find t on line from pairCentre to finalHook where dist(apex, hook) = topLen
+        // apex(t) = pairCentre + t * (hook - pairCentre)
+        // dist = (1-t) * fullDist = topLen → t = 1 - topLen / fullDist
+        const fullDist = CalcCore.dist3D(pairCentre, finalHook);
+        const t = fullDist > 0.001 ? Math.max(0.01, 1 - topLen / fullDist) : 0.5;
+        return {
+          x: pairCentre.x + t * (finalHook.x - pairCentre.x),
+          y: pairCentre.y + t * (finalHook.y - pairCentre.y),
+          z: pairCentre.z + t * (finalHook.z - pairCentre.z)
+        };
+      }
+
+      apexA = placeApexAtTopLen(pairCentreA);
+      apexB = placeApexAtTopLen(pairCentreB);
+    }
+
+    const hook = { x: hookXY.x, y: hookXY.y, z: hookZ };
 
     // --- 5. COG polygon validation ---
     const cogInsidePolygon = CalcCore.pointInPolygon2D(
