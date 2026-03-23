@@ -73,7 +73,7 @@ window.CalcDoubleCas = (() => {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
     const { masterLength, slaveLengthA, slaveLengthB, bottomSlingLen } = config;
     const minAngleRad = C.degToRad(minAngleDeg);
-    const minSlingLen = bottomSlingLen || 2;
+    const minSlingLen = bottomSlingLen ?? 2;
 
     // ── 1. LP pairing ──
     let groupAIdxs, groupBIdxs;
@@ -97,14 +97,8 @@ window.CalcDoubleCas = (() => {
     const groupALabels = groupAIdxs.map(i => 'LP' + (i + 1));
     const groupBLabels = groupBIdxs.map(i => 'LP' + (i + 1));
 
-    // ── 2. Compute "virtual hook" for each side (= master beam end position) ──
-    // First compute overall hook position (same as 4-leg direct)
+    // ── 2. Master beam — centered above load midpoint ──
     const hookXY = { x: cog.x, y: cog.y };
-    const hDists = liftingPoints.map(lp => C.horizontalDist(lp, hookXY));
-    const requiredHookZs = liftingPoints.map((lp, i) => lp.z + hDists[i] * Math.tan(minAngleRad));
-    const hookZ = Math.max(...requiredHookZs);
-
-    // Master beam centered above load midpoint
     const lpMidA = C.midpoint(groupALPs[0], groupALPs[1]);
     const lpMidB = C.midpoint(groupBLPs[0], groupBLPs[1]);
     const masterCenter = C.midpoint(lpMidA, lpMidB);
@@ -140,7 +134,7 @@ window.CalcDoubleCas = (() => {
     // Iteratively raise masterZ until middle slings also meet min angle.
     // Slave end positions depend on masterZ, and middle sling angles depend on both.
     let slaveA1, slaveA2, slaveB1, slaveB2;
-    for (let iter = 0; iter < 10; iter++) {
+    for (let iter = 0; iter < 20; iter++) {
       const mEndA = { ...masterEndAxy, z: masterZ };
       const mEndB = { ...masterEndBxy, z: masterZ };
 
@@ -282,6 +276,8 @@ window.CalcDoubleCas = (() => {
       topSlings.some(s => s.angleDegFromHoriz < TOP_ANGLE_WARN_DEG) ||
       middleSlings.some(s => s.angleDegFromHoriz < TOP_ANGLE_WARN_DEG);
     const negativeTension = allSlings.some(s => s.tension < 0);
+    const nearHorizontalBottom = bottomSlings.some(s => s.angleDegFromHoriz < 5);
+    const bottomSlingBelowMin = minSlingLen > 0 && bottomSlings.some(s => s.length < minSlingLen - 0.01);
 
     // ── 12. Critical sling ──
     let criticalTier = 'bottom';
@@ -346,6 +342,8 @@ window.CalcDoubleCas = (() => {
         cogOutsidePolygon,
         negativeTension,
         topSlingAngleLow,
+        nearHorizontalBottom,
+        bottomSlingBelowMin,
         liftBeamBendingNotChecked: false
       }
     };
