@@ -187,49 +187,49 @@ window.CalcDoubleCas = (() => {
     const bottomSlings = [];
     bottomSlings.push(C.buildSling(slingId++,
       { ...groupALPs[0], label: groupALabels[0] },
-      { ...slaveA1, label: 'Slave A End 1' }
+      { ...slaveA1, label: '2nd A End 1' }
     ));
     bottomSlings.push(C.buildSling(slingId++,
       { ...groupALPs[1], label: groupALabels[1] },
-      { ...slaveA2, label: 'Slave A End 2' }
+      { ...slaveA2, label: '2nd A End 2' }
     ));
     bottomSlings.push(C.buildSling(slingId++,
       { ...groupBLPs[0], label: groupBLabels[0] },
-      { ...slaveB1, label: 'Slave B End 1' }
+      { ...slaveB1, label: '2nd B End 1' }
     ));
     bottomSlings.push(C.buildSling(slingId++,
       { ...groupBLPs[1], label: groupBLabels[1] },
-      { ...slaveB2, label: 'Slave B End 2' }
+      { ...slaveB2, label: '2nd B End 2' }
     ));
 
     // ── 7. Middle slings (4): slave beam ends → master beam ends ──
     const middleSlings = [];
     middleSlings.push(C.buildSling(slingId++,
-      { ...slaveA1, label: 'Slave A End 1' },
-      { ...masterEnds.endA, label: 'Master End A' }
+      { ...slaveA1, label: '2nd A End 1' },
+      { ...masterEnds.endA, label: 'Main End A' }
     ));
     middleSlings.push(C.buildSling(slingId++,
-      { ...slaveA2, label: 'Slave A End 2' },
-      { ...masterEnds.endA, label: 'Master End A' }
+      { ...slaveA2, label: '2nd A End 2' },
+      { ...masterEnds.endA, label: 'Main End A' }
     ));
     middleSlings.push(C.buildSling(slingId++,
-      { ...slaveB1, label: 'Slave B End 1' },
-      { ...masterEnds.endB, label: 'Master End B' }
+      { ...slaveB1, label: '2nd B End 1' },
+      { ...masterEnds.endB, label: 'Main End B' }
     ));
     middleSlings.push(C.buildSling(slingId++,
-      { ...slaveB2, label: 'Slave B End 2' },
-      { ...masterEnds.endB, label: 'Master End B' }
+      { ...slaveB2, label: '2nd B End 2' },
+      { ...masterEnds.endB, label: 'Main End B' }
     ));
 
     // ── 8. Top slings (2): master beam ends → hook ──
     const topSlings = [];
     const topSlingA = C.buildSling(slingId++,
-      { ...masterEnds.endA, label: 'Master End A' },
+      { ...masterEnds.endA, label: 'Main End A' },
       { ...hook, label: 'Hook' }
     );
     topSlings.push(topSlingA);
     const topSlingB = C.buildSling(slingId++,
-      { ...masterEnds.endB, label: 'Master End B' },
+      { ...masterEnds.endB, label: 'Main End B' },
       { ...hook, label: 'Hook' }
     );
     topSlings.push(topSlingB);
@@ -314,29 +314,29 @@ window.CalcDoubleCas = (() => {
       ],
       beams: [
         {
-          name: 'Master Beam',
+          name: 'Main Beam',
           endA: { x: C.round4(masterEnds.endA.x), y: C.round4(masterEnds.endA.y), z: C.round4(masterEnds.endA.z) },
           endB: { x: C.round4(masterEnds.endB.x), y: C.round4(masterEnds.endB.y), z: C.round4(masterEnds.endB.z) },
           length: C.round4(masterLength), pickupPoint: null
         },
         {
-          name: 'Slave Beam A',
+          name: '2nd Lvl Beam A',
           endA: { x: C.round4(slaveA1.x), y: C.round4(slaveA1.y), z: C.round4(slaveA1.z) },
           endB: { x: C.round4(slaveA2.x), y: C.round4(slaveA2.y), z: C.round4(slaveA2.z) },
           length: actualSlaveLenA, pickupPoint: null
         },
         {
-          name: 'Slave Beam B',
+          name: '2nd Lvl Beam B',
           endA: { x: C.round4(slaveB1.x), y: C.round4(slaveB1.y), z: C.round4(slaveB1.z) },
           endB: { x: C.round4(slaveB2.x), y: C.round4(slaveB2.y), z: C.round4(slaveB2.z) },
           length: actualSlaveLenB, pickupPoint: null
         }
       ],
       intermediatePoints: [
-        { ...slaveA1, label: 'Slave A End 1' }, { ...slaveA2, label: 'Slave A End 2' },
-        { ...slaveB1, label: 'Slave B End 1' }, { ...slaveB2, label: 'Slave B End 2' },
-        { x: C.round4(masterEnds.endA.x), y: C.round4(masterEnds.endA.y), z: C.round4(masterEnds.endA.z), label: 'Master End A' },
-        { x: C.round4(masterEnds.endB.x), y: C.round4(masterEnds.endB.y), z: C.round4(masterEnds.endB.z), label: 'Master End B' }
+        { ...slaveA1, label: '2nd A End 1' }, { ...slaveA2, label: '2nd A End 2' },
+        { ...slaveB1, label: '2nd B End 1' }, { ...slaveB2, label: '2nd B End 2' },
+        { x: C.round4(masterEnds.endA.x), y: C.round4(masterEnds.endA.y), z: C.round4(masterEnds.endA.z), label: 'Main End A' },
+        { x: C.round4(masterEnds.endB.x), y: C.round4(masterEnds.endB.y), z: C.round4(masterEnds.endB.z), label: 'Main End B' }
       ],
       warnings: {
         cogOutsidePolygon,

@@ -227,10 +227,10 @@ export function update(results, cog, units) {
     scene.add(beamMesh);
     sceneObjects.push(beamMesh);
 
-    // Beam label at midpoint
+    // Beam label offset above midpoint so it doesn't block the beam
     const midPt = new THREE.Vector3().lerpVectors(ptA, ptB, 0.5);
     const beamLabel = createLabel(beam.name || 'Beam', '#c0392b', true);
-    beamLabel.position.copy(midPt);
+    beamLabel.position.set(midPt.x, midPt.y + 0.5, midPt.z);
     scene.add(beamLabel);
     sceneObjects.push(beamLabel);
   });
