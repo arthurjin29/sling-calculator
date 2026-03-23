@@ -549,8 +549,6 @@ document.addEventListener('DOMContentLoaded', () => {
         data.slaveLengthA = parseRequiredFloat('dcas-slave-length-a', 'Slave Beam A Length');
         data.slaveLengthB = parseRequiredFloat('dcas-slave-length-b', 'Slave Beam B Length');
         data.masterOrientation = document.getElementById('dcas-master-orientation').value;
-        data.slaveOrientationA = document.getElementById('dcas-slave-orientation-a').value;
-        data.slaveOrientationB = document.getElementById('dcas-slave-orientation-b').value;
         data.bottomSlingLen = parseFloat(document.getElementById('dcas-bottom-sling-len').value) || 2;
         break;
     }

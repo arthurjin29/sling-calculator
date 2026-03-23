@@ -131,11 +131,15 @@ export function update(results, cog, units) {
   const intermediatePtColor = 0x8b5cf6;
 
   // --- Load footprint (filled polygon between LPs) ---
+  // Sort LPs by angle around centroid to form a valid polygon
   if (lps.length >= 3) {
+    const cx = lps.reduce((s, p) => s + p.x, 0) / lps.length;
+    const cy = lps.reduce((s, p) => s + p.y, 0) / lps.length;
+    const lpsOrdered = [...lps].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
     const loadShape = new THREE.Shape();
-    loadShape.moveTo(lps[0].x, -lps[0].y);
-    for (let i = 1; i < lps.length; i++) {
-      loadShape.lineTo(lps[i].x, -lps[i].y);
+    loadShape.moveTo(lpsOrdered[0].x, -lpsOrdered[0].y);
+    for (let i = 1; i < lpsOrdered.length; i++) {
+      loadShape.lineTo(lpsOrdered[i].x, -lpsOrdered[i].y);
     }
     loadShape.closePath();
     const loadGeo = new THREE.ShapeGeometry(loadShape);
@@ -150,7 +154,7 @@ export function update(results, cog, units) {
     sceneObjects.push(loadMesh);
 
     // Load outline
-    const outlinePts = lps.map(p => new THREE.Vector3(p.x, p.z, -p.y));
+    const outlinePts = lpsOrdered.map(p => new THREE.Vector3(p.x, p.z, -p.y));
     outlinePts.push(outlinePts[0].clone());
     const outlineGeo = new THREE.BufferGeometry().setFromPoints(outlinePts);
     const outlineMat = new THREE.LineBasicMaterial({ color: loadFillColor, linewidth: 2 });
@@ -231,19 +235,12 @@ export function update(results, cog, units) {
     sceneObjects.push(beamLabel);
   });
 
-  // --- Intermediate point rendering ---
+  // --- Intermediate point rendering (dots only, no labels to reduce clutter) ---
   intermediatePoints.forEach(pt => {
     const sphere = createSphere(0.1, intermediatePtColor);
     sphere.position.set(pt.x, pt.z, -pt.y);
     scene.add(sphere);
     sceneObjects.push(sphere);
-
-    if (pt.label) {
-      const ptLabel = createLabel(pt.label, '#8b5cf6');
-      ptLabel.position.set(pt.x, pt.z + 0.35, -pt.y);
-      scene.add(ptLabel);
-      sceneObjects.push(ptLabel);
-    }
   });
 
   // --- Sling lines + labels (iterate tiers) ---
@@ -257,6 +254,9 @@ export function update(results, cog, units) {
       const toPt = new THREE.Vector3(s.to.x, s.to.z, -s.to.y);
       const color = s.isCritical ? palette.critical : palette.normal;
 
+      // Skip zero-length slings (prevents TubeGeometry crash)
+      if (fromPt.distanceTo(toPt) < 0.001) { globalSlingIdx++; return; }
+
       // Tube for visible sling
       const path = new THREE.LineCurve3(fromPt, toPt);
       const tubeGeo = new THREE.TubeGeometry(path, 1, 0.03, 8, false);
@@ -268,7 +268,7 @@ export function update(results, cog, units) {
       // Sling label at staggered position along sling
       const t = labelPositions[globalSlingIdx % labelPositions.length];
       const mid = new THREE.Vector3().lerpVectors(fromPt, toPt, t);
-      const labelText = `${s.length.toFixed(2)}${unitLen}\n${s.angleDegFromHoriz.toFixed(0)}\u00B0\n${s.tension.toFixed(2)}${unitLoad}`;
+      const labelText = `${s.length.toFixed(2)}${unitLen} ${s.angleDegFromHoriz.toFixed(0)}\u00B0`;
       const labelColor = s.isCritical ? palette.criticalHex : palette.normalHex;
       const slingLabel = createLabel(labelText, labelColor, true);
       slingLabel.position.copy(mid);

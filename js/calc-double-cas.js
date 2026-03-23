@@ -1,13 +1,15 @@
 /**
  * Sling Length Calculator — Double Spreader (Cascading) Configuration
  *
- * Three-tier cascading where slave beam ends sit on the direct sling paths
- * (same approach as double-parallel). The master beam connects the slave
- * beam groups. Slave beams are spreader beams (compression, no bending).
+ * Same as parallel, but the hook is replaced by a master spreader beam.
+ * Each master beam end acts as the "hook" for a slave beam pair.
+ * Slave beam ends sit on the direct sling paths from LP to master beam end,
+ * using the same computeBeamEndPair logic as the parallel config.
  *
- *   Bottom:  4 slings from 4 LPs to slave beam ends (on sling paths)
- *   Middle:  4 slings from slave beam ends to master beam ends
- *   Top:     2 slings from master beam ends to hook
+ *   Top:     2 slings (hook → master beam ends)
+ *   Middle:  4 slings (slave beam ends → master beam ends)
+ *   Bottom:  4 slings (LPs → slave beam ends)
+ *   Total:   10 slings, 3 beams
  *
  * Exposes: window.CalcDoubleCas = { calculate }
  */
@@ -17,199 +19,236 @@ window.CalcDoubleCas = (() => {
   const C = CalcCore;
   const TOP_ANGLE_WARN_DEG = 30;
 
+  /**
+   * Place beam ends on direct sling paths from LPs toward a target point.
+   * Identical logic to calc-double-par.js computeBeamEndPair.
+   */
+  function computeBeamEndPair(lp0, lp1, target, beamLength, minSlingLen) {
+    const spreadAtZero = C.horizontalDist(lp0, lp1);
+
+    if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
+      function placeOnXZpath(lp) {
+        const dx = target.x - lp.x;
+        const dz = target.z - lp.z;
+        const xzDist = Math.sqrt(dx * dx + dz * dz);
+        if (xzDist < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
+        const frac = Math.min(minSlingLen / xzDist, 0.95);
+        return {
+          x: lp.x + frac * dx,
+          y: lp.y,
+          z: lp.z + frac * dz
+        };
+      }
+      return { end0: placeOnXZpath(lp0), end1: placeOnXZpath(lp1) };
+    }
+
+    // Beam shorter than LP spread: place ends on direct sling paths
+    let t = 1 - beamLength / spreadAtZero;
+
+    // Enforce minimum bottom sling length
+    const fullLen0 = C.dist3D(lp0, target);
+    const fullLen1 = C.dist3D(lp1, target);
+    const minT = Math.max(
+      fullLen0 > 0 ? minSlingLen / fullLen0 : 0,
+      fullLen1 > 0 ? minSlingLen / fullLen1 : 0
+    );
+    t = Math.max(t, minT);
+    t = Math.min(t, 0.95);
+
+    return {
+      end0: {
+        x: lp0.x + t * (target.x - lp0.x),
+        y: lp0.y + t * (target.y - lp0.y),
+        z: lp0.z + t * (target.z - lp0.z)
+      },
+      end1: {
+        x: lp1.x + t * (target.x - lp1.x),
+        y: lp1.y + t * (target.y - lp1.y),
+        z: lp1.z + t * (target.z - lp1.z)
+      }
+    };
+  }
+
   function calculate(shared, config) {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
-    const {
-      masterLength, slaveLengthA, slaveLengthB,
-      masterOrientation, bottomSlingLen
-    } = config;
-    const minSlingLen = bottomSlingLen || 2;
+    const { masterLength, slaveLengthA, slaveLengthB, bottomSlingLen } = config;
     const minAngleRad = C.degToRad(minAngleDeg);
+    const minSlingLen = bottomSlingLen || 2;
 
-    // ── 1. Auto-pair LPs by proximity ──
-    const pairingsOpt = [[[0,1],[2,3]], [[0,2],[1,3]], [[0,3],[1,2]]];
-    let bestPairing = pairingsOpt[0];
-    let bestDist = Infinity;
-    for (const p of pairingsOpt) {
-      const d = C.horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
-              + C.horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
-      if (d < bestDist) { bestDist = d; bestPairing = p; }
+    // ── 1. LP pairing ──
+    let groupAIdxs, groupBIdxs;
+    if (config.pairing) {
+      groupAIdxs = config.pairing.groupA.map(v => v - 1);
+      groupBIdxs = config.pairing.groupB.map(v => v - 1);
+    } else {
+      const pairingsOpt = [[[0,1],[2,3]], [[0,2],[1,3]], [[0,3],[1,2]]];
+      let bestPairing = pairingsOpt[0];
+      let bestDist = Infinity;
+      for (const p of pairingsOpt) {
+        const d = C.horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
+                + C.horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
+        if (d < bestDist) { bestDist = d; bestPairing = p; }
+      }
+      groupAIdxs = bestPairing[0];
+      groupBIdxs = bestPairing[1];
     }
-    const groupAIdxs = bestPairing[0];
-    const groupBIdxs = bestPairing[1];
     const groupALPs = groupAIdxs.map(i => liftingPoints[i]);
     const groupBLPs = groupBIdxs.map(i => liftingPoints[i]);
     const groupALabels = groupAIdxs.map(i => 'LP' + (i + 1));
     const groupBLabels = groupBIdxs.map(i => 'LP' + (i + 1));
 
-    // ── 2. Compute hook from 4-leg direct geometry ──
+    // ── 2. Compute "virtual hook" for each side (= master beam end position) ──
+    // First compute overall hook position (same as 4-leg direct)
     const hookXY = { x: cog.x, y: cog.y };
     const hDists = liftingPoints.map(lp => C.horizontalDist(lp, hookXY));
     const requiredHookZs = liftingPoints.map((lp, i) => lp.z + hDists[i] * Math.tan(minAngleRad));
-    const hook = { x: cog.x, y: cog.y, z: Math.max(...requiredHookZs) };
+    const hookZ = Math.max(...requiredHookZs);
 
-    // ── 3. Place slave beam ends on direct sling paths ──
-    function computeBeamEndPair(lp0, lp1, beamLength) {
-      const spreadAtZero = C.horizontalDist(lp0, lp1);
+    // Master beam centered above load midpoint
+    const lpMidA = C.midpoint(groupALPs[0], groupALPs[1]);
+    const lpMidB = C.midpoint(groupBLPs[0], groupBLPs[1]);
+    const masterCenter = C.midpoint(lpMidA, lpMidB);
 
-      if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
-        // Beam >= LP spread: beam handles the short direction entirely.
-        // Bottom slings stay angled in the long direction (X-Z plane).
-        function placeOnXZpath(lp) {
-          const dx = hook.x - lp.x;
-          const dz = hook.z - lp.z;
-          const xzDist = Math.sqrt(dx * dx + dz * dz);
-          if (xzDist < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
-          const frac = Math.min(minSlingLen / xzDist, 0.95);
-          return {
-            x: lp.x + frac * dx,
-            y: lp.y,
-            z: lp.z + frac * dz
-          };
+    const mAxisX = lpMidB.x - lpMidA.x;
+    const mAxisY = lpMidB.y - lpMidA.y;
+    const mAxisLen = Math.sqrt(mAxisX * mAxisX + mAxisY * mAxisY) || 1;
+    const mUx = mAxisX / mAxisLen;
+    const mUy = mAxisY / mAxisLen;
+
+    const halfMaster = masterLength / 2;
+    const masterEndAxy = { x: masterCenter.x - mUx * halfMaster, y: masterCenter.y - mUy * halfMaster };
+    const masterEndBxy = { x: masterCenter.x + mUx * halfMaster, y: masterCenter.y + mUy * halfMaster };
+
+    // Master beam Z: each master end acts as "hook" for its LP pair.
+    // Must be high enough for min angle from each LP in its group.
+    const hDistA0 = C.horizontalDist(groupALPs[0], masterEndAxy);
+    const hDistA1 = C.horizontalDist(groupALPs[1], masterEndAxy);
+    const hDistB0 = C.horizontalDist(groupBLPs[0], masterEndBxy);
+    const hDistB1 = C.horizontalDist(groupBLPs[1], masterEndBxy);
+
+    const masterEndAz = Math.max(
+      groupALPs[0].z + hDistA0 * Math.tan(minAngleRad),
+      groupALPs[1].z + hDistA1 * Math.tan(minAngleRad)
+    );
+    const masterEndBz = Math.max(
+      groupBLPs[0].z + hDistB0 * Math.tan(minAngleRad),
+      groupBLPs[1].z + hDistB1 * Math.tan(minAngleRad)
+    );
+    // Both ends at same Z (it's a rigid beam)
+    let masterZ = Math.max(masterEndAz, masterEndBz);
+
+    // Iteratively raise masterZ until middle slings also meet min angle.
+    // Slave end positions depend on masterZ, and middle sling angles depend on both.
+    let slaveA1, slaveA2, slaveB1, slaveB2;
+    for (let iter = 0; iter < 10; iter++) {
+      const mEndA = { ...masterEndAxy, z: masterZ };
+      const mEndB = { ...masterEndBxy, z: masterZ };
+
+      const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], mEndA, slaveLengthA, minSlingLen);
+      const pairB = computeBeamEndPair(groupBLPs[0], groupBLPs[1], mEndB, slaveLengthB, minSlingLen);
+
+      slaveA1 = pairA.end0;
+      slaveA2 = pairA.end1;
+      slaveB1 = pairB.end0;
+      slaveB2 = pairB.end1;
+
+      // Check middle sling angles and compute required masterZ
+      const slaveEnds = [slaveA1, slaveA2, slaveB1, slaveB2];
+      const mEnds = [mEndA, mEndA, mEndB, mEndB];
+      let newMasterZ = masterZ;
+      for (let i = 0; i < 4; i++) {
+        const hd = C.horizontalDist(slaveEnds[i], mEnds[i]);
+        if (hd > 0.001) {
+          const requiredZ = slaveEnds[i].z + hd * Math.tan(minAngleRad);
+          if (requiredZ > newMasterZ) newMasterZ = requiredZ;
         }
-        return { end0: placeOnXZpath(lp0), end1: placeOnXZpath(lp1), t: 0 };
       }
-
-      // Beam shorter than LP spread: place ends on direct sling paths
-      let t = 1 - beamLength / spreadAtZero;
-
-      const fullLen0 = C.dist3D(lp0, hook);
-      const fullLen1 = C.dist3D(lp1, hook);
-      const minT = Math.max(
-        fullLen0 > 0 ? minSlingLen / fullLen0 : 0,
-        fullLen1 > 0 ? minSlingLen / fullLen1 : 0
-      );
-      t = Math.max(t, minT);
-      t = Math.min(t, 0.95);
-
-      return {
-        end0: {
-          x: lp0.x + t * (hook.x - lp0.x),
-          y: lp0.y + t * (hook.y - lp0.y),
-          z: lp0.z + t * (hook.z - lp0.z)
-        },
-        end1: {
-          x: lp1.x + t * (hook.x - lp1.x),
-          y: lp1.y + t * (hook.y - lp1.y),
-          z: lp1.z + t * (hook.z - lp1.z)
-        },
-        t
-      };
+      if (newMasterZ - masterZ < 0.001) break;
+      masterZ = newMasterZ;
     }
 
-    const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], slaveLengthA);
-    const pairB = computeBeamEndPair(groupBLPs[0], groupBLPs[1], slaveLengthB);
+    const masterEnds = {
+      endA: { ...masterEndAxy, z: masterZ },
+      endB: { ...masterEndBxy, z: masterZ }
+    };
 
-    const slaveA1 = pairA.end0;
-    const slaveA2 = pairA.end1;
-    const slaveB1 = pairB.end0;
-    const slaveB2 = pairB.end1;
+    // Actual slave beam lengths
+    const actualSlaveLenA = C.round4(C.dist3D(slaveA1, slaveA2));
+    const actualSlaveLenB = C.round4(C.dist3D(slaveB1, slaveB2));
 
-    // ── 4. Master beam — uses specified length, above slave beams ──
-    const slaveMidA = C.midpoint(slaveA1, slaveA2);
-    const slaveMidB = C.midpoint(slaveB1, slaveB2);
+    // ── 4. Hook — above master beam at min angle ──
+    const hDistHA = C.horizontalDist(masterEnds.endA, hookXY);
+    const hDistHB = C.horizontalDist(masterEnds.endB, hookXY);
+    const hook = {
+      x: cog.x,
+      y: cog.y,
+      z: masterZ + Math.max(hDistHA, hDistHB) * Math.tan(minAngleRad)
+    };
 
-    // Master beam centre between slave midpoints, along specified axis
-    const masterAxis = C.getOrientationAxis(liftingPoints, masterOrientation);
-    const masterCentre = C.midpoint(slaveMidA, slaveMidB);
-
-    let masterEnds = C.computeBeamEnds(
-      { x: masterCentre.x, y: masterCentre.y, z: 0 },
-      masterLength, masterAxis
-    );
-
-    // Assign master end A closest to slave A
-    if (C.horizontalDist(slaveMidA, masterEnds.endB) < C.horizontalDist(slaveMidA, masterEnds.endA)) {
-      const tmp = masterEnds.endA; masterEnds.endA = masterEnds.endB; masterEnds.endB = tmp;
-    }
-
-    // Master end Z from slave beam ends + min angle (master ABOVE slaves)
-    masterEnds.endA.z = C.computeBeamEndZ([slaveA1, slaveA2], masterEnds.endA, minAngleRad);
-    masterEnds.endB.z = C.computeBeamEndZ([slaveB1, slaveB2], masterEnds.endB, minAngleRad);
-
-    // ── 5. Hook position — in master beam plane ──
-    const cogToEndA = { x: cog.x - masterEnds.endA.x, y: cog.y - masterEnds.endA.y };
-    const mDir = { x: masterEnds.endB.x - masterEnds.endA.x, y: masterEnds.endB.y - masterEnds.endA.y };
-    const mLen2D = Math.sqrt(mDir.x * mDir.x + mDir.y * mDir.y);
-    let topHookX, topHookY;
-    if (mLen2D > 0.0001) {
-      const tProj = (cogToEndA.x * mDir.x + cogToEndA.y * mDir.y) / (mLen2D * mLen2D);
-      topHookX = masterEnds.endA.x + tProj * mDir.x;
-      topHookY = masterEnds.endA.y + tProj * mDir.y;
-    } else {
-      topHookX = cog.x; topHookY = cog.y;
-    }
-    const topHook = { x: topHookX, y: topHookY, z: 0 };
-    const hDistMA = C.horizontalDist(masterEnds.endA, topHook);
-    const hDistMB = C.horizontalDist(masterEnds.endB, topHook);
-    topHook.z = Math.max(
-      masterEnds.endA.z + hDistMA * Math.tan(minAngleRad),
-      masterEnds.endB.z + hDistMB * Math.tan(minAngleRad)
-    );
-
-    // ── 6. COG polygon validation ──
+    // ── 5. COG polygon validation ──
     const cogOutsidePolygon = !C.pointInPolygon2D(cog, liftingPoints);
 
-    // ── 7. Bottom slings (4): LP → slave beam end ──
-    const bottomSlings = [];
+    // ── 6. Bottom slings (4): LP → slave beam end ──
     let slingId = 1;
+    const bottomSlings = [];
     bottomSlings.push(C.buildSling(slingId++,
-      { x: groupALPs[0].x, y: groupALPs[0].y, z: groupALPs[0].z, label: groupALabels[0] },
-      { x: slaveA1.x, y: slaveA1.y, z: slaveA1.z, label: 'Slave A End 1' }
+      { ...groupALPs[0], label: groupALabels[0] },
+      { ...slaveA1, label: 'Slave A End 1' }
     ));
     bottomSlings.push(C.buildSling(slingId++,
-      { x: groupALPs[1].x, y: groupALPs[1].y, z: groupALPs[1].z, label: groupALabels[1] },
-      { x: slaveA2.x, y: slaveA2.y, z: slaveA2.z, label: 'Slave A End 2' }
+      { ...groupALPs[1], label: groupALabels[1] },
+      { ...slaveA2, label: 'Slave A End 2' }
     ));
     bottomSlings.push(C.buildSling(slingId++,
-      { x: groupBLPs[0].x, y: groupBLPs[0].y, z: groupBLPs[0].z, label: groupBLabels[0] },
-      { x: slaveB1.x, y: slaveB1.y, z: slaveB1.z, label: 'Slave B End 1' }
+      { ...groupBLPs[0], label: groupBLabels[0] },
+      { ...slaveB1, label: 'Slave B End 1' }
     ));
     bottomSlings.push(C.buildSling(slingId++,
-      { x: groupBLPs[1].x, y: groupBLPs[1].y, z: groupBLPs[1].z, label: groupBLabels[1] },
-      { x: slaveB2.x, y: slaveB2.y, z: slaveB2.z, label: 'Slave B End 2' }
+      { ...groupBLPs[1], label: groupBLabels[1] },
+      { ...slaveB2, label: 'Slave B End 2' }
     ));
 
-    // ── 8. Middle slings (4): slave ends → master ends ──
+    // ── 7. Middle slings (4): slave beam ends → master beam ends ──
     const middleSlings = [];
     middleSlings.push(C.buildSling(slingId++,
-      { x: slaveA1.x, y: slaveA1.y, z: slaveA1.z, label: 'Slave A End 1' },
-      { x: masterEnds.endA.x, y: masterEnds.endA.y, z: masterEnds.endA.z, label: 'Master End A' }
+      { ...slaveA1, label: 'Slave A End 1' },
+      { ...masterEnds.endA, label: 'Master End A' }
     ));
     middleSlings.push(C.buildSling(slingId++,
-      { x: slaveA2.x, y: slaveA2.y, z: slaveA2.z, label: 'Slave A End 2' },
-      { x: masterEnds.endA.x, y: masterEnds.endA.y, z: masterEnds.endA.z, label: 'Master End A' }
+      { ...slaveA2, label: 'Slave A End 2' },
+      { ...masterEnds.endA, label: 'Master End A' }
     ));
     middleSlings.push(C.buildSling(slingId++,
-      { x: slaveB1.x, y: slaveB1.y, z: slaveB1.z, label: 'Slave B End 1' },
-      { x: masterEnds.endB.x, y: masterEnds.endB.y, z: masterEnds.endB.z, label: 'Master End B' }
+      { ...slaveB1, label: 'Slave B End 1' },
+      { ...masterEnds.endB, label: 'Master End B' }
     ));
     middleSlings.push(C.buildSling(slingId++,
-      { x: slaveB2.x, y: slaveB2.y, z: slaveB2.z, label: 'Slave B End 2' },
-      { x: masterEnds.endB.x, y: masterEnds.endB.y, z: masterEnds.endB.z, label: 'Master End B' }
+      { ...slaveB2, label: 'Slave B End 2' },
+      { ...masterEnds.endB, label: 'Master End B' }
     ));
 
-    // ── 9. Top slings (2): master ends → hook ──
+    // ── 8. Top slings (2): master beam ends → hook ──
     const topSlings = [];
     const topSlingA = C.buildSling(slingId++,
-      { x: masterEnds.endA.x, y: masterEnds.endA.y, z: masterEnds.endA.z, label: 'Master End A' },
-      { x: topHook.x, y: topHook.y, z: topHook.z, label: 'Hook' }
+      { ...masterEnds.endA, label: 'Master End A' },
+      { ...hook, label: 'Hook' }
     );
     topSlings.push(topSlingA);
     const topSlingB = C.buildSling(slingId++,
-      { x: masterEnds.endB.x, y: masterEnds.endB.y, z: masterEnds.endB.z, label: 'Master End B' },
-      { x: topHook.x, y: topHook.y, z: topHook.z, label: 'Hook' }
+      { ...masterEnds.endB, label: 'Master End B' },
+      { ...hook, label: 'Hook' }
     );
     topSlings.push(topSlingB);
 
-    // ── 10. Tensions — cascade downward ──
-    const [topTensionA, topTensionB] = C.calcTwoSlingTension(masterEnds.endA, masterEnds.endB, topHook, totalLoad);
+    // ── 9. Tensions — cascade downward ──
+    const [topTensionA, topTensionB] = C.calcTwoSlingTension(masterEnds.endA, masterEnds.endB, hook, totalLoad);
     topSlingA.tension = C.round4(topTensionA);
     topSlingB.tension = C.round4(topTensionB);
 
-    const vLoadMasterA = C.computeVerticalLoad(topTensionA, masterEnds.endA, topHook);
-    const vLoadMasterB = C.computeVerticalLoad(topTensionB, masterEnds.endB, topHook);
+    const vLoadMasterA = C.computeVerticalLoad(topTensionA, masterEnds.endA, hook);
+    const vLoadMasterB = C.computeVerticalLoad(topTensionB, masterEnds.endB, hook);
 
+    // Middle tier: 2 slings per master end sharing that side's vertical load
     const midTensionsA = C.calcTwoSlingTension(slaveA1, slaveA2, masterEnds.endA, vLoadMasterA);
     middleSlings[0].tension = C.round4(midTensionsA[0]);
     middleSlings[1].tension = C.round4(midTensionsA[1]);
@@ -218,32 +257,33 @@ window.CalcDoubleCas = (() => {
     middleSlings[2].tension = C.round4(midTensionsB[0]);
     middleSlings[3].tension = C.round4(midTensionsB[1]);
 
-    const vLoadSlaveA1 = C.computeVerticalLoad(midTensionsA[0], slaveA1, masterEnds.endA);
-    const vLoadSlaveA2 = C.computeVerticalLoad(midTensionsA[1], slaveA2, masterEnds.endA);
-    const vLoadSlaveB1 = C.computeVerticalLoad(midTensionsB[0], slaveB1, masterEnds.endB);
-    const vLoadSlaveB2 = C.computeVerticalLoad(midTensionsB[1], slaveB2, masterEnds.endB);
-
-    const slaveEndVLoads = [vLoadSlaveA1, vLoadSlaveA2, vLoadSlaveB1, vLoadSlaveB2];
+    // Bottom tier: each bottom sling carries the vertical load from its slave beam end
     for (let i = 0; i < 4; i++) {
-      const s = bottomSlings[i];
-      const len = C.dist3D(s.from, s.to);
-      const vd = Math.abs(s.to.z - s.from.z);
-      s.tension = C.round4((vd > 1e-9) ? slaveEndVLoads[i] * len / vd : slaveEndVLoads[i]);
+      const midSling = middleSlings[i];
+      const botSling = bottomSlings[i];
+      const vLoad = C.computeVerticalLoad(midSling.tension, midSling.from, midSling.to);
+      const len = C.dist3D(botSling.from, botSling.to);
+      const vd = Math.abs(botSling.to.z - botSling.from.z);
+      if (len < 0.0001 || vd < 0.0001) {
+        botSling.tension = C.round4(vLoad);
+      } else {
+        botSling.tension = C.round4(vLoad * len / vd);
+      }
     }
 
-    // ── 11. Vertical loads ──
+    // ── 10. Vertical loads ──
     const allSlings = [...bottomSlings, ...middleSlings, ...topSlings];
     for (const s of allSlings) {
       s.verticalLoad = C.round4(C.computeVerticalLoad(s.tension, s.from, s.to));
     }
 
-    // ── 12. Warnings ──
+    // ── 11. Warnings ──
     const topSlingAngleLow =
       topSlings.some(s => s.angleDegFromHoriz < TOP_ANGLE_WARN_DEG) ||
       middleSlings.some(s => s.angleDegFromHoriz < TOP_ANGLE_WARN_DEG);
     const negativeTension = allSlings.some(s => s.tension < 0);
 
-    // ── 13. Critical sling ──
+    // ── 12. Critical sling ──
     let criticalTier = 'bottom';
     let criticalIdx = 0;
     let maxTension = -Infinity;
@@ -259,17 +299,15 @@ window.CalcDoubleCas = (() => {
     const tierMap = { bottom: bottomSlings, middle: middleSlings, top: topSlings };
     tierMap[criticalTier][criticalIdx].isCritical = true;
 
-    // ── 14. Headroom ──
+    // ── 13. Result ──
     const maxLPz = Math.max(...liftingPoints.map(p => p.z));
-    const actualSlaveLenA = C.round4(C.dist3D(slaveA1, slaveA2));
-    const actualSlaveLenB = C.round4(C.dist3D(slaveB1, slaveB2));
 
     return {
       configType: 'double-cascade',
-      hook: { x: C.round4(topHook.x), y: C.round4(topHook.y), z: C.round4(topHook.z) },
-      hookHeight: C.round4(topHook.z),
-      headroom: C.round4(topHook.z - maxLPz),
-      heightAboveCOG: C.round4(topHook.z - cog.z),
+      hook: { x: C.round4(hook.x), y: C.round4(hook.y), z: C.round4(hook.z) },
+      hookHeight: C.round4(hook.z),
+      headroom: C.round4(hook.z - maxLPz),
+      heightAboveCOG: C.round4(hook.z - cog.z),
       totalLoad,
       minAngleDeg,
       criticalSling: { tier: criticalTier, id: criticalIdx + 1 },
@@ -283,7 +321,7 @@ window.CalcDoubleCas = (() => {
           name: 'Master Beam',
           endA: { x: C.round4(masterEnds.endA.x), y: C.round4(masterEnds.endA.y), z: C.round4(masterEnds.endA.z) },
           endB: { x: C.round4(masterEnds.endB.x), y: C.round4(masterEnds.endB.y), z: C.round4(masterEnds.endB.z) },
-          length: masterLength, pickupPoint: null
+          length: C.round4(masterLength), pickupPoint: null
         },
         {
           name: 'Slave Beam A',
@@ -299,10 +337,8 @@ window.CalcDoubleCas = (() => {
         }
       ],
       intermediatePoints: [
-        { x: C.round4(slaveA1.x), y: C.round4(slaveA1.y), z: C.round4(slaveA1.z), label: 'Slave A End 1' },
-        { x: C.round4(slaveA2.x), y: C.round4(slaveA2.y), z: C.round4(slaveA2.z), label: 'Slave A End 2' },
-        { x: C.round4(slaveB1.x), y: C.round4(slaveB1.y), z: C.round4(slaveB1.z), label: 'Slave B End 1' },
-        { x: C.round4(slaveB2.x), y: C.round4(slaveB2.y), z: C.round4(slaveB2.z), label: 'Slave B End 2' },
+        { ...slaveA1, label: 'Slave A End 1' }, { ...slaveA2, label: 'Slave A End 2' },
+        { ...slaveB1, label: 'Slave B End 1' }, { ...slaveB2, label: 'Slave B End 2' },
         { x: C.round4(masterEnds.endA.x), y: C.round4(masterEnds.endA.y), z: C.round4(masterEnds.endA.z), label: 'Master End A' },
         { x: C.round4(masterEnds.endB.x), y: C.round4(masterEnds.endB.y), z: C.round4(masterEnds.endB.z), label: 'Master End B' }
       ],
