@@ -744,7 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
       msgs.push('Lifting beam bending capacity has NOT been checked — verify the beam can safely support the calculated loads and span.');
     }
     if (warnings.minAngleBelowAmber) {
-      msgs.push({ text: 'Minimum sling angle is below 45\u00B0 — sling tensions increase significantly at shallow angles. Review rigging design.', amber: true });
+      msgs.push({ text: 'Minimum sling angle is below 45\u00B0', amber: true });
     }
 
     if (msgs.length === 0) return;
