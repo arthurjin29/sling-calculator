@@ -400,13 +400,16 @@ git commit -m "feat: implement double spreader (parallel) configuration"
 
 - [ ] **Step 1: Create `calc-double-cas.js`**
 
-Three-tier cascading:
-1. Slave beam ends from LP geometry + bottom angle
-2. Slave midpoints = geometric midpoints of slave beam ends
-3. Master centre = midpoint of slave midpoints, master ends along master orientation
-4. Master end Z from middle sling geometry
-5. Top slings: master ends → hook
-6. Three tiers: bottom, middle, top. Three beams in result.
+Three-tier cascading (10 slings, all 3 beams in compression):
+1. Group LPs by pairing → 2 slave beam groups (widthwise pairs)
+2. Slave beam ends directly above LPs (same XY, Z = LP.z + bottom sling length)
+3. Master beam ends above slave beam midpoints (same XY)
+4. Master end Z = slaveMid.z + halfSlaveLength × tan(minAngle)
+5. Middle slings: 4 slings from master ends fanning widthwise to slave beam ends (2 per master end)
+6. Top slings: 2 slings from master ends → hook (same angle)
+7. Bottom slings: 4 vertical from slave beam ends to LPs
+8. Beam lengths computed from LP geometry, not user input
+9. Three tiers: bottom (4 slings), middle (4 slings), top (2 slings). Three beams in result.
 
 - [ ] **Step 2: Add script tag, verify, commit**
 

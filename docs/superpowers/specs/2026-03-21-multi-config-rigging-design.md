@@ -40,10 +40,17 @@ Extend the existing 4-point sling length calculator to support 6 rigging configu
 - **Inputs:** 2× beam lengths, orientation per beam, LP pairing
 
 ### 6. Double Spreader (Cascading)
-- **Bottom tier:** 4 slings from 4 LPs to ends of 2 slave spreader beams
-- **Middle tier:** 2 slings from slave beam midpoints to ends of 1 master spreader beam
-- **Top tier:** 2 slings from master beam ends to hook
-- **Inputs:** Master beam length, 2× slave beam lengths, master orientation, slave orientation per beam, LP pairing
+- **All 3 beams are spreader beams (compression).** Slings go to beam ends.
+- **Master beam** (lengthwise) runs in the long direction, sets the primary geometry
+- **Slave beams** (widthwise) run in the short direction — their ends sit directly above the LPs to spread bottom slings widthwise apart
+- From each master beam end, 2 middle slings fan out widthwise down to the ends of one slave beam
+- **Top tier:** 2 slings from hook to master beam ends
+- **Middle tier:** 4 slings from 2 master beam ends to 4 slave beam ends (2 per master end, fanning widthwise)
+- **Bottom tier:** 4 slings from 4 slave beam ends straight down to 4 LPs (vertical)
+- **Total:** 10 slings, 3 beams — all in compression
+- **Beam lengths:** Determined by LP geometry (master length = distance between LP group midpoints, slave length = widthwise LP spread within each group)
+- **Middle sling angle:** Set by slave beam half-length and min angle input
+- **Inputs:** Bottom sling length, LP pairing, min sling angle
 - Three-tier system.
 
 ## UI Design
@@ -244,13 +251,15 @@ LP positions + min angle → hook Z → sling lengths → load distribution (min
 6. Tensions calculated per tier
 
 **Double Spreader (Cascading):**
-1. Group LPs by pairing → 2 slave beam groups
-2. Slave beam ends from LP geometry + bottom sling angle
-3. Middle slings from slave beam midpoints to master beam ends
-4. Master beam ends from slave positions + master beam length + orientation
-5. Top slings from master beam ends to hook
-6. Hook Z from top tier geometry
-7. Tensions cascade upward through tiers
+1. Group LPs by pairing → 2 slave beam groups (widthwise pairs)
+2. Slave beam ends directly above LPs (same XY, Z = LP.z + bottom sling length)
+3. Slave beam midpoints = midpoint of each slave beam's ends
+4. Master beam ends above slave beam midpoints (same XY)
+5. Master beam end Z from slave midpoint Z + half-slave-length × tan(minAngle)
+6. 4 middle slings from master ends fanning widthwise to slave beam ends (2 per master end)
+7. 2 top slings from master beam ends to hook
+8. Hook Z from top tier geometry (same angle)
+9. Tensions cascade downward: top → middle → bottom (10 slings, all 3 beams in compression)
 
 ## Results Display
 
@@ -261,7 +270,7 @@ Same layout as current. Critical sling label includes tier: e.g. "Bottom Sling 2
 One table per tier:
 - **Bottom Slings** table: sling ID, from/to labels, length, angle (horiz/vert), H.dist, V.dist, tension, V.load, status
 - **Top Slings** table: same columns
-- **Middle Slings** table (cascading only): same columns
+- **Middle Slings** table (cascading only): 4 slings, same columns
 
 ### Beam Details (new card, beam configs only)
 - Beam name, length, orientation
