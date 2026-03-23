@@ -543,7 +543,10 @@ document.addEventListener('DOMContentLoaded', () => {
         data.orientation = document.getElementById('spreader-orientation').value;
         break;
       case 'stinger':
-        data.topSlingLength = parseFloat(document.getElementById('stinger-top-length').value) || 0;
+        data.topSlingLength = parseFloat(document.getElementById('stinger-top-length').value) || 1;
+        if (data.topSlingLength <= 0) {
+          throw new Error('Top sling length must be greater than 0. For no stinger, use the 4-Sling Direct configuration.');
+        }
         break;
       case 'lifting-beam':
         data.beamLength = parseRequiredFloat('liftbeam-length', 'Beam Length');
