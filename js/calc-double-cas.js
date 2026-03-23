@@ -24,72 +24,42 @@ window.CalcDoubleCas = (() => {
    * Uses full 3D path (including Y component) for correct placement.
    */
   /**
-   * Place beam ends on direct sling paths from LPs toward target.
-   *
-   * Beam length is the primary constraint — the beam is physical equipment.
-   * Bottom sling length (minSlingLen) sets slave beam height independently
-   * when beam >= LP spread and t would otherwise be 0.
+   * Place slave beam ends centered under the target (master beam end),
+   * oriented along the LP pair axis, at user-specified beam length.
+   * Height set by bottom sling length using Pythagoras.
    */
   function computeBeamEndPair(lp0, lp1, target, beamLength, minSlingLen) {
-    const spreadAtZero = C.horizontalDist(lp0, lp1);
+    // Slave beam axis: along LP pair direction
+    const axX = lp1.x - lp0.x;
+    const axY = lp1.y - lp0.y;
+    const axLen = Math.sqrt(axX * axX + axY * axY) || 1;
+    const uX = axX / axLen;
+    const uY = axY / axLen;
 
-    if (spreadAtZero < 0.0001) {
-      // Degenerate: LPs at same position
-      function placeOnPath(lp) {
-        const dx = target.x - lp.x;
-        const dy = target.y - lp.y;
-        const dz = target.z - lp.z;
-        const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (d < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
-        const frac = Math.min(minSlingLen / d, 0.95);
-        return { x: lp.x + frac * dx, y: lp.y + frac * dy, z: lp.z + frac * dz };
-      }
-      return { end0: placeOnPath(lp0), end1: placeOnPath(lp1) };
+    // Slave beam centered under target, at user-specified length
+    const half = beamLength / 2;
+    const end0xy = { x: target.x - uX * half, y: target.y - uY * half };
+    const end1xy = { x: target.x + uX * half, y: target.y + uY * half };
+
+    // Height: bottom sling length sets Z via Pythagoras
+    // Z_rise = sqrt(minSlingLen² - hDist²), fall back to min angle if sling too short
+    const avgLPz = (lp0.z + lp1.z) / 2;
+    const hDist0 = C.horizontalDist(lp0, end0xy);
+    const hDist1 = C.horizontalDist(lp1, end1xy);
+    const maxHDist = Math.max(hDist0, hDist1);
+
+    let rise;
+    if (minSlingLen > maxHDist) {
+      rise = Math.sqrt(minSlingLen * minSlingLen - maxHDist * maxHDist);
+    } else {
+      // Sling too short for the horizontal distance — use sling length as vertical rise
+      rise = minSlingLen;
     }
 
-    // Beam length determines horizontal spread of beam ends.
-    // t = fraction from LP toward target on the sling path.
-    // At parameter t, horizontal spread between the two ends = spreadAtZero * (1-t).
-    // So for requested beamLength: t = 1 - beamLength / spreadAtZero.
-    let t = Math.max(0, 1 - beamLength / spreadAtZero);
-
-    // When beam >= spread (t=0), beam ends are at LP level horizontally.
-    // Use bottom sling length to lift them above the LPs along the sling path.
-    // When beam < spread (t>0), bottom sling length is already determined by t.
-    if (t < 0.0001 && minSlingLen > 0) {
-      // Beam ends need to be lifted. Place each end at minSlingLen along
-      // the 3D path from LP toward target.
-      const fullLen0 = C.dist3D(lp0, target);
-      const fullLen1 = C.dist3D(lp1, target);
-      const t0 = fullLen0 > 0 ? Math.min(minSlingLen / fullLen0, 0.95) : 0;
-      const t1 = fullLen1 > 0 ? Math.min(minSlingLen / fullLen1, 0.95) : 0;
-      return {
-        end0: {
-          x: lp0.x + t0 * (target.x - lp0.x),
-          y: lp0.y + t0 * (target.y - lp0.y),
-          z: lp0.z + t0 * (target.z - lp0.z)
-        },
-        end1: {
-          x: lp1.x + t1 * (target.x - lp1.x),
-          y: lp1.y + t1 * (target.y - lp1.y),
-          z: lp1.z + t1 * (target.z - lp1.z)
-        }
-      };
-    }
-
-    t = Math.min(t, 0.95);
-
+    const slaveZ = avgLPz + rise;
     return {
-      end0: {
-        x: lp0.x + t * (target.x - lp0.x),
-        y: lp0.y + t * (target.y - lp0.y),
-        z: lp0.z + t * (target.z - lp0.z)
-      },
-      end1: {
-        x: lp1.x + t * (target.x - lp1.x),
-        y: lp1.y + t * (target.y - lp1.y),
-        z: lp1.z + t * (target.z - lp1.z)
-      }
+      end0: { ...end0xy, z: slaveZ },
+      end1: { ...end1xy, z: slaveZ }
     };
   }
 
