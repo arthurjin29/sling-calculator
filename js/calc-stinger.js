@@ -1,79 +1,79 @@
 /**
  * Stinger / Equalising Triangle Calculation
  *
- * Unlike a spreader beam, the stinger splits a direct sling into two segments.
- * Hook height is computed from 4-leg direct geometry (min angle from all LPs).
- * User defines top sling length (default = halfway between LP-pair centre and hook).
- * Apex Z is derived from the top sling length, not from a beam-end-Z formula.
+ * The stinger splits a 4-leg direct lift: at a junction point along each
+ * pair's path, two slings become one. Bottom sling angles match the direct
+ * config. The apex sits on the line from LP-pair centre to hook.
  *
- * Bottom tier: 4 slings from 4 LPs to 2 apex points.
- * Top tier: 2 slings from apex points to hook.
- * No rigid beam.
+ * User defines top sling length (0 = auto, halfway along pair-centre-to-hook).
  */
 
 const CalcStinger = (() => {
 
-  /**
-   * @param {object} shared - { liftingPoints, cog, minAngleDeg, totalLoad }
-   * @param {object} config - { topSlingLength, pairing: { groupA: [idx,idx], groupB: [idx,idx] } }
-   *                          LP indices are 1-based. topSlingLength 0 = auto (halfway).
-   */
   function calculate(shared, config) {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
     const minAngleRad = CalcCore.degToRad(minAngleDeg);
 
-    // --- 1. Extract LP groups (convert 1-based to 0-based) ---
-    const groupAIndices = config.pairing.groupA.map(i => i - 1);
-    const groupBIndices = config.pairing.groupB.map(i => i - 1);
+    // --- 1. Auto-pair LPs by proximity (closest two form a pair) ---
+    // 3 possible pairings of 4 points into 2 pairs — pick smallest total distance
+    const pairings = [
+      [[0,1],[2,3]],
+      [[0,2],[1,3]],
+      [[0,3],[1,2]]
+    ];
+    let bestPairing = pairings[0];
+    let bestDist = Infinity;
+    for (const p of pairings) {
+      const d = CalcCore.horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
+              + CalcCore.horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
+      if (d < bestDist) { bestDist = d; bestPairing = p; }
+    }
+    const groupAIndices = bestPairing[0];
+    const groupBIndices = bestPairing[1];
     const groupALPs = groupAIndices.map(i => liftingPoints[i]);
     const groupBLPs = groupBIndices.map(i => liftingPoints[i]);
 
-    // --- 2. Compute hook from 4-leg direct geometry (min angle from all 4 LPs) ---
+    // --- 2. Compute hook from 4-leg direct geometry ---
     const hookXY = { x: cog.x, y: cog.y };
     const hDists = liftingPoints.map(lp => CalcCore.horizontalDist(lp, hookXY));
     const requiredHookZs = liftingPoints.map((lp, i) => lp.z + hDists[i] * Math.tan(minAngleRad));
     const hookZ = Math.max(...requiredHookZs);
     const hook = { x: hookXY.x, y: hookXY.y, z: hookZ };
 
-    // --- 3. Apex XY = midpoint of each group's LPs ---
-    const midA = CalcCore.midpoint(groupALPs[0], groupALPs[1]);
-    const midB = CalcCore.midpoint(groupBLPs[0], groupBLPs[1]);
+    // --- 3. Pair centres ---
+    const pairCentreA = CalcCore.midpoint(groupALPs[0], groupALPs[1]);
+    const pairCentreB = CalcCore.midpoint(groupBLPs[0], groupBLPs[1]);
 
-    // --- 4. Compute apex Z from top sling length ---
-    // LP-pair centre (with average Z of the pair)
-    const pairCentreA = { x: midA.x, y: midA.y, z: (groupALPs[0].z + groupALPs[1].z) / 2 };
-    const pairCentreB = { x: midB.x, y: midB.y, z: (groupBLPs[0].z + groupBLPs[1].z) / 2 };
-
-    // Full path distance from LP-pair centre to hook
+    // --- 4. Compute apex on the line from pair centre to hook ---
+    // Full distance from pair centre to hook
     const fullDistA = CalcCore.dist3D(pairCentreA, hook);
     const fullDistB = CalcCore.dist3D(pairCentreB, hook);
 
-    // Top sling length: user-defined or default (half of full path)
-    let topLenA = config.topSlingLength || 0;
-    let topLenB = config.topSlingLength || 0;
-    if (topLenA <= 0) topLenA = (fullDistA + fullDistB) / 4; // half of average full path
-    if (topLenB <= 0) topLenB = topLenA; // same for both
+    // Top sling length determines where on the path the split occurs
+    let topLen = config.topSlingLength || 0;
 
-    // Horizontal distance from each apex to hook
-    const hDistApexA = CalcCore.horizontalDist(midA, hook);
-    const hDistApexB = CalcCore.horizontalDist(midB, hook);
-
-    // Apex Z: hook.z - sqrt(topLen² - hDist²)
-    let apexAZ, apexBZ;
-    if (topLenA > hDistApexA) {
-      apexAZ = hookZ - Math.sqrt(topLenA * topLenA - hDistApexA * hDistApexA);
+    // Default: halfway (t = 0.5)
+    let tA, tB;
+    if (topLen <= 0) {
+      tA = 0.5;
+      tB = 0.5;
     } else {
-      // Top sling too short — place apex at hook Z (degenerate)
-      apexAZ = hookZ;
-    }
-    if (topLenB > hDistApexB) {
-      apexBZ = hookZ - Math.sqrt(topLenB * topLenB - hDistApexB * hDistApexB);
-    } else {
-      apexBZ = hookZ;
+      // t = 1 - topSlingLength / fullDist
+      tA = Math.max(0.05, Math.min(0.95, 1 - topLen / fullDistA));
+      tB = Math.max(0.05, Math.min(0.95, 1 - topLen / fullDistB));
     }
 
-    const apexA = { x: midA.x, y: midA.y, z: apexAZ };
-    const apexB = { x: midB.x, y: midB.y, z: apexBZ };
+    // Apex = pairCentre + t * (hook - pairCentre)
+    const apexA = {
+      x: pairCentreA.x + tA * (hook.x - pairCentreA.x),
+      y: pairCentreA.y + tA * (hook.y - pairCentreA.y),
+      z: pairCentreA.z + tA * (hook.z - pairCentreA.z)
+    };
+    const apexB = {
+      x: pairCentreB.x + tB * (hook.x - pairCentreB.x),
+      y: pairCentreB.y + tB * (hook.y - pairCentreB.y),
+      z: pairCentreB.z + tB * (hook.z - pairCentreB.z)
+    };
 
     // --- 5. COG polygon validation ---
     const cogInsidePolygon = CalcCore.pointInPolygon2D(
@@ -96,19 +96,14 @@ const CalcStinger = (() => {
     topSlingB.tension = CalcCore.round4(topTensions[1]);
     topSlingA.verticalLoad = CalcCore.round4(CalcCore.computeVerticalLoad(topTensions[0], apexA, hook));
     topSlingB.verticalLoad = CalcCore.round4(CalcCore.computeVerticalLoad(topTensions[1], apexB, hook));
-
     const topSlings = [topSlingA, topSlingB];
 
-    // --- 8. Bottom sling tensions per group ---
+    // --- 8. Bottom sling tensions ---
     const vLoadA = CalcCore.computeVerticalLoad(topTensions[0], apexA, hook);
     const vLoadB = CalcCore.computeVerticalLoad(topTensions[1], apexB, hook);
 
-    const bottomTensionsA = CalcCore.calcTwoSlingTension(
-      groupALPs[0], groupALPs[1], apexA, vLoadA
-    );
-    const bottomTensionsB = CalcCore.calcTwoSlingTension(
-      groupBLPs[0], groupBLPs[1], apexB, vLoadB
-    );
+    const bottomTensionsA = CalcCore.calcTwoSlingTension(groupALPs[0], groupALPs[1], apexA, vLoadA);
+    const bottomTensionsB = CalcCore.calcTwoSlingTension(groupBLPs[0], groupBLPs[1], apexB, vLoadB);
 
     // --- 9. Build bottom slings ---
     const bottomSlings = [];
@@ -119,6 +114,7 @@ const CalcStinger = (() => {
       const lp = groupALPs[i];
       const sling = CalcCore.buildSling(slingId++,
         { x: lp.x, y: lp.y, z: lp.z, label: 'LP' + (lpIdx + 1) },
+
         { x: apexA.x, y: apexA.y, z: apexA.z, label: 'Apex A' }
       );
       sling.tension = CalcCore.round4(bottomTensionsA[i]);
@@ -131,6 +127,7 @@ const CalcStinger = (() => {
       const lp = groupBLPs[i];
       const sling = CalcCore.buildSling(slingId++,
         { x: lp.x, y: lp.y, z: lp.z, label: 'LP' + (lpIdx + 1) },
+
         { x: apexB.x, y: apexB.y, z: apexB.z, label: 'Apex B' }
       );
       sling.tension = CalcCore.round4(bottomTensionsB[i]);
@@ -138,11 +135,11 @@ const CalcStinger = (() => {
       bottomSlings.push(sling);
     }
 
-    // --- 10. Check bottom sling angles against min angle ---
+    // --- 10. Check bottom sling angles vs min angle ---
     const bottomAngleLow = bottomSlings.some(s => s.angleDegFromHoriz < minAngleDeg - 0.1);
     const topSlingAngleLow = topSlings.some(s => s.angleDegFromHoriz < 30);
 
-    // --- 11. Find critical sling ---
+    // --- 11. Critical sling ---
     const allSlings = [...bottomSlings, ...topSlings];
     let hasNegativeTension = false;
     let criticalTier = 'bottom';
