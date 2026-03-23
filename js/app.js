@@ -327,6 +327,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const displayResults = currentUnit === 'ft' ? convertResultsToImperial(results) : results;
 
       displayOutput(displayResults);
+      if (calcInputs.minAngle < 45) {
+        results.warnings = results.warnings || {};
+        results.warnings.minAngleBelowAmber = true;
+      }
       displayWarnings(results.warnings);
 
       lastResults = displayResults;
@@ -478,6 +482,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const minAngle = Math.max(30, parseRequiredFloat('min-angle', 'Min Sling Angle'));
     if (minAngle >= 90) {
       throw new Error('Minimum sling angle must be less than 90°.');
+    }
+    const minAngleEl = document.getElementById('min-angle');
+    if (minAngle < 45) {
+      minAngleEl.style.borderColor = '#f39c12';
+      minAngleEl.style.backgroundColor = '#fef9e7';
+    } else {
+      minAngleEl.style.borderColor = '';
+      minAngleEl.style.backgroundColor = '';
     }
 
     for (let i = 0; i < 4; i++) {
@@ -731,12 +743,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (warnings.liftBeamBendingNotChecked) {
       msgs.push('Lifting beam bending capacity has NOT been checked — verify the beam can safely support the calculated loads and span.');
     }
+    if (warnings.minAngleBelowAmber) {
+      msgs.push({ text: 'Minimum sling angle is below 45\u00B0 — sling tensions increase significantly at shallow angles. Review rigging design.', amber: true });
+    }
 
     if (msgs.length === 0) return;
 
-    warningDiv.innerHTML = msgs.map(m =>
-      `<div class="warning-msg">${m}</div>`
-    ).join('');
+    for (const m of msgs) {
+      const div = document.createElement('div');
+      div.className = typeof m === 'object' && m.amber ? 'warning-msg warning-amber' : 'warning-msg';
+      div.textContent = typeof m === 'object' ? m.text : m;
+      warningDiv.appendChild(div);
+    }
   }
 
   // --- Save / Load ---

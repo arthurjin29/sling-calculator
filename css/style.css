@@ -208,6 +208,11 @@ h1 {
   font-size: 0.9rem;
   font-weight: 600;
 }
+.warning-amber {
+  background: #fff3cd;
+  color: #856404;
+  border-left-color: #f39c12;
+}
 
 /* Results */
 #results { display: none; }
