@@ -163,22 +163,33 @@ const CalcCore = (() => {
       }
       return t;
     } else {
-      // N = 2: least-squares
-      const AT = transposeNxM(A, 3, N);
-      const ATA = matMxNMultiply(AT, A, N, 3, N);
-      const ATAinv = mat2x2Inverse(ATA);
-      if (!ATAinv) return Array(N).fill(totalLoad / N);
+      // N = 2: enforce vertical equilibrium exactly via moment balance.
+      const uz0 = A[2][0], uz1 = A[2][1];
 
-      const ATb = [];
-      for (let i = 0; i < N; i++) {
-        ATb[i] = AT[i][0] * b[0] + AT[i][1] * b[1] + AT[i][2] * b[2];
+      if (Math.abs(uz0) < 0.0001 && Math.abs(uz1) < 0.0001) {
+        return [totalLoad / 2, totalLoad / 2];
       }
-      const t = [];
-      for (let i = 0; i < N; i++) {
-        t[i] = 0;
-        for (let j = 0; j < N; j++) t[i] += ATAinv[i][j] * ATb[j];
+
+      // Moment balance about hook in XY plane to split vertical load
+      const dx0 = points[0].x - hook.x, dy0 = points[0].y - hook.y;
+      const dx1 = points[1].x - hook.x, dy1 = points[1].y - hook.y;
+      const arm0 = Math.sqrt(dx0 * dx0 + dy0 * dy0);
+      const arm1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+      const totalArm = arm0 + arm1;
+
+      let vLoad0, vLoad1;
+      if (totalArm < 0.0001) {
+        vLoad0 = totalLoad / 2;
+        vLoad1 = totalLoad / 2;
+      } else {
+        vLoad0 = totalLoad * arm1 / totalArm;
+        vLoad1 = totalLoad * arm0 / totalArm;
       }
-      return t;
+
+      // Convert vertical loads to sling tensions: T = vLoad / uz
+      const t0 = Math.abs(uz0) > 0.0001 ? vLoad0 / uz0 : vLoad0;
+      const t1 = Math.abs(uz1) > 0.0001 ? vLoad1 / uz1 : vLoad1;
+      return [t0, t1];
     }
   }
 

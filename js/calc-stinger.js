@@ -73,8 +73,11 @@ const CalcStinger = (() => {
     let apexA, apexB;
 
     if (topLen <= 0) {
-      apexA = C.lerp3D(pairCentreA, refHook, 0.5);
-      apexB = C.lerp3D(pairCentreB, refHook, 0.5);
+      // Default: place apex where bottom slings meet min angle
+      const tAutoA = findApexOnLine(groupALPs[0], groupALPs[1], pairCentreA, refHook, minAngleRad);
+      const tAutoB = findApexOnLine(groupBLPs[0], groupBLPs[1], pairCentreB, refHook, minAngleRad);
+      apexA = C.lerp3D(pairCentreA, refHook, tAutoA);
+      apexB = C.lerp3D(pairCentreB, refHook, tAutoB);
     } else {
       for (let iter = 0; iter < 15; iter++) {
         const currentHook = { x: hookXY.x, y: hookXY.y, z: hookZ };
