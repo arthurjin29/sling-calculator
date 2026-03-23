@@ -23,40 +23,60 @@ window.CalcDoubleCas = (() => {
    * Place beam ends on direct sling paths from LPs toward a target point.
    * Uses full 3D path (including Y component) for correct placement.
    */
+  /**
+   * Place beam ends on direct sling paths from LPs toward target.
+   *
+   * Beam length is the primary constraint — the beam is physical equipment.
+   * Bottom sling length (minSlingLen) sets slave beam height independently
+   * when beam >= LP spread and t would otherwise be 0.
+   */
   function computeBeamEndPair(lp0, lp1, target, beamLength, minSlingLen) {
     const spreadAtZero = C.horizontalDist(lp0, lp1);
 
     if (spreadAtZero < 0.0001) {
-      // Degenerate: LPs at same position, place along path using minSlingLen
+      // Degenerate: LPs at same position
       function placeOnPath(lp) {
         const dx = target.x - lp.x;
         const dy = target.y - lp.y;
         const dz = target.z - lp.z;
-        const dist3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (dist3D < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
-        const frac = Math.min(minSlingLen / dist3D, 0.95);
-        return {
-          x: lp.x + frac * dx,
-          y: lp.y + frac * dy,
-          z: lp.z + frac * dz
-        };
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (d < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
+        const frac = Math.min(minSlingLen / d, 0.95);
+        return { x: lp.x + frac * dx, y: lp.y + frac * dy, z: lp.z + frac * dz };
       }
       return { end0: placeOnPath(lp0), end1: placeOnPath(lp1) };
     }
 
-    // Place ends on direct sling paths at parameter t.
-    // t = 1 - beamLength/spread: when beam < spread, ends move toward target.
-    // When beam >= spread, t <= 0, clamped by minSlingLen enforcement below.
+    // Beam length determines horizontal spread of beam ends.
+    // t = fraction from LP toward target on the sling path.
+    // At parameter t, horizontal spread between the two ends = spreadAtZero * (1-t).
+    // So for requested beamLength: t = 1 - beamLength / spreadAtZero.
     let t = Math.max(0, 1 - beamLength / spreadAtZero);
 
-    // Enforce minimum bottom sling length
-    const fullLen0 = C.dist3D(lp0, target);
-    const fullLen1 = C.dist3D(lp1, target);
-    const minT = Math.max(
-      fullLen0 > 0 ? minSlingLen / fullLen0 : 0,
-      fullLen1 > 0 ? minSlingLen / fullLen1 : 0
-    );
-    t = Math.max(t, minT);
+    // When beam >= spread (t=0), beam ends are at LP level horizontally.
+    // Use bottom sling length to lift them above the LPs along the sling path.
+    // When beam < spread (t>0), bottom sling length is already determined by t.
+    if (t < 0.0001 && minSlingLen > 0) {
+      // Beam ends need to be lifted. Place each end at minSlingLen along
+      // the 3D path from LP toward target.
+      const fullLen0 = C.dist3D(lp0, target);
+      const fullLen1 = C.dist3D(lp1, target);
+      const t0 = fullLen0 > 0 ? Math.min(minSlingLen / fullLen0, 0.95) : 0;
+      const t1 = fullLen1 > 0 ? Math.min(minSlingLen / fullLen1, 0.95) : 0;
+      return {
+        end0: {
+          x: lp0.x + t0 * (target.x - lp0.x),
+          y: lp0.y + t0 * (target.y - lp0.y),
+          z: lp0.z + t0 * (target.z - lp0.z)
+        },
+        end1: {
+          x: lp1.x + t1 * (target.x - lp1.x),
+          y: lp1.y + t1 * (target.y - lp1.y),
+          z: lp1.z + t1 * (target.z - lp1.z)
+        }
+      };
+    }
+
     t = Math.min(t, 0.95);
 
     return {
