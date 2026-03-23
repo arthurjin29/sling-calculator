@@ -475,9 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalLoad = parseRequiredFloat('total-load', 'Total Load');
     if (totalLoad <= 0) throw new Error('Total Load must be greater than 0.');
 
-    const minAngle = parseRequiredFloat('min-angle', 'Min Sling Angle');
-    if (minAngle <= 0 || minAngle >= 90) {
-      throw new Error('Minimum sling angle must be between 0° and 90° (exclusive).');
+    const minAngle = Math.max(30, parseRequiredFloat('min-angle', 'Min Sling Angle'));
+    if (minAngle >= 90) {
+      throw new Error('Minimum sling angle must be less than 90°.');
     }
 
     for (let i = 0; i < 4; i++) {
