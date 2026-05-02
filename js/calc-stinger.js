@@ -39,16 +39,7 @@ const CalcStinger = (() => {
     const tanMinAngle = Math.tan(minAngleRad);
 
     // --- 1. Auto-pair LPs by proximity ---
-    const pairings = [[[0,1],[2,3]], [[0,2],[1,3]], [[0,3],[1,2]]];
-    let bestPairing = pairings[0];
-    let bestDist = Infinity;
-    for (const p of pairings) {
-      const d = C.horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
-              + C.horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
-      if (d < bestDist) { bestDist = d; bestPairing = p; }
-    }
-    const groupAIndices = bestPairing[0];
-    const groupBIndices = bestPairing[1];
+    const [groupAIndices, groupBIndices] = C.autoPairLPs(liftingPoints);
     const groupALPs = groupAIndices.map(i => liftingPoints[i]);
     const groupBLPs = groupBIndices.map(i => liftingPoints[i]);
 

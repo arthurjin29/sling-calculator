@@ -81,16 +81,7 @@ window.CalcDoubleCas = (() => {
       groupAIdxs = config.pairing.groupA.map(v => v - 1);
       groupBIdxs = config.pairing.groupB.map(v => v - 1);
     } else {
-      const pairingsOpt = [[[0,1],[2,3]], [[0,2],[1,3]], [[0,3],[1,2]]];
-      let bestPairing = pairingsOpt[0];
-      let bestDist = Infinity;
-      for (const p of pairingsOpt) {
-        const d = C.horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
-                + C.horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
-        if (d < bestDist) { bestDist = d; bestPairing = p; }
-      }
-      groupAIdxs = bestPairing[0];
-      groupBIdxs = bestPairing[1];
+      [groupAIdxs, groupBIdxs] = C.autoPairLPs(liftingPoints);
     }
     const groupALPs = groupAIdxs.map(i => liftingPoints[i]);
     const groupBLPs = groupBIdxs.map(i => liftingPoints[i]);

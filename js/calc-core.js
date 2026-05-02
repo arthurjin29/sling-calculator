@@ -34,6 +34,22 @@ const CalcCore = (() => {
   }
 
   /**
+   * Pair 4 lifting points into the two pairs that minimise total in-pair
+   * horizontal distance. Returns [[i,j], [k,l]] — index pairs for groups A and B.
+   */
+  function autoPairLPs(liftingPoints) {
+    const pairings = [[[0,1],[2,3]], [[0,2],[1,3]], [[0,3],[1,2]]];
+    let bestPairing = pairings[0];
+    let bestDist = Infinity;
+    for (const p of pairings) {
+      const d = horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
+              + horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
+      if (d < bestDist) { bestDist = d; bestPairing = p; }
+    }
+    return bestPairing;
+  }
+
+  /**
    * Ray-casting point-in-polygon test (2D, XY plane).
    */
   function pointInPolygon2D(point, polygon) {
@@ -314,6 +330,7 @@ const CalcCore = (() => {
   return {
     degToRad, radToDeg, round2, round4,
     horizontalDist, dist3D, midpoint, lerp3D,
+    autoPairLPs,
     pointInPolygon2D,
     mat3x3Inverse, mat2x2Inverse,
     transposeNxM, matMxNMultiply,
