@@ -19,56 +19,6 @@ window.CalcDoubleCas = (() => {
   const C = CalcCore;
   const TOP_ANGLE_WARN_DEG = 30;
 
-  /**
-   * Place beam ends on direct sling paths from LPs toward a target point.
-   * Identical logic to calc-double-par.js computeBeamEndPair.
-   */
-  function computeBeamEndPair(lp0, lp1, target, beamLength, minSlingLen) {
-    const spreadAtZero = C.horizontalDist(lp0, lp1);
-
-    if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
-      function placeOnXZpath(lp) {
-        const dx = target.x - lp.x;
-        const dz = target.z - lp.z;
-        const xzDist = Math.sqrt(dx * dx + dz * dz);
-        if (xzDist < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
-        const frac = Math.min(minSlingLen / xzDist, 0.95);
-        return {
-          x: lp.x + frac * dx,
-          y: lp.y,
-          z: lp.z + frac * dz
-        };
-      }
-      return { end0: placeOnXZpath(lp0), end1: placeOnXZpath(lp1) };
-    }
-
-    // Beam shorter than LP spread: place ends on direct sling paths
-    let t = 1 - beamLength / spreadAtZero;
-
-    // Enforce minimum bottom sling length
-    const fullLen0 = C.dist3D(lp0, target);
-    const fullLen1 = C.dist3D(lp1, target);
-    const minT = Math.max(
-      fullLen0 > 0 ? minSlingLen / fullLen0 : 0,
-      fullLen1 > 0 ? minSlingLen / fullLen1 : 0
-    );
-    t = Math.max(t, minT);
-    t = Math.min(t, 0.95);
-
-    return {
-      end0: {
-        x: lp0.x + t * (target.x - lp0.x),
-        y: lp0.y + t * (target.y - lp0.y),
-        z: lp0.z + t * (target.z - lp0.z)
-      },
-      end1: {
-        x: lp1.x + t * (target.x - lp1.x),
-        y: lp1.y + t * (target.y - lp1.y),
-        z: lp1.z + t * (target.z - lp1.z)
-      }
-    };
-  }
-
   function calculate(shared, config) {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
     const { masterLength, slaveLengthA, slaveLengthB, bottomSlingLen } = config;
@@ -129,8 +79,8 @@ window.CalcDoubleCas = (() => {
       const mEndA = { ...masterEndAxy, z: masterZ };
       const mEndB = { ...masterEndBxy, z: masterZ };
 
-      const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], mEndA, slaveLengthA, minSlingLen);
-      const pairB = computeBeamEndPair(groupBLPs[0], groupBLPs[1], mEndB, slaveLengthB, minSlingLen);
+      const pairA = C.computeBeamEndPair(groupALPs[0], groupALPs[1], mEndA, slaveLengthA, minSlingLen);
+      const pairB = C.computeBeamEndPair(groupBLPs[0], groupBLPs[1], mEndB, slaveLengthB, minSlingLen);
 
       slaveA1 = pairA.end0;
       slaveA2 = pairA.end1;

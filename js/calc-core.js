@@ -317,6 +317,46 @@ const CalcCore = (() => {
   }
 
   /**
+   * Place beam ends on direct sling paths from each LP toward a target point.
+   * Path: P(t) = LP + t * (target - LP); pair horizontal spread shrinks with t.
+   * - If beam length >= LP horizontal spread, beam handles the short axis fully:
+   *   ends sit on the LP's vertical X-Z path, sharing the LP's Y, with
+   *   minSlingLen along the path.
+   * - Otherwise, ends sit on the direct sling paths at the t where horizontal
+   *   spread equals beamLength, clamped by minSlingLen and t<=0.95.
+   */
+  function computeBeamEndPair(lp0, lp1, target, beamLength, minSlingLen) {
+    const spreadAtZero = horizontalDist(lp0, lp1);
+
+    if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
+      function placeOnXZpath(lp) {
+        const dx = target.x - lp.x;
+        const dz = target.z - lp.z;
+        const xzDist = Math.sqrt(dx * dx + dz * dz);
+        if (xzDist < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
+        const frac = Math.min(minSlingLen / xzDist, 0.95);
+        return { x: lp.x + frac * dx, y: lp.y, z: lp.z + frac * dz };
+      }
+      return { end0: placeOnXZpath(lp0), end1: placeOnXZpath(lp1) };
+    }
+
+    let t = 1 - beamLength / spreadAtZero;
+    const fullLen0 = dist3D(lp0, target);
+    const fullLen1 = dist3D(lp1, target);
+    const minT = Math.max(
+      fullLen0 > 0 ? minSlingLen / fullLen0 : 0,
+      fullLen1 > 0 ? minSlingLen / fullLen1 : 0
+    );
+    t = Math.max(t, minT);
+    t = Math.min(t, 0.95);
+
+    return {
+      end0: lerp3D(lp0, target, t),
+      end1: lerp3D(lp1, target, t)
+    };
+  }
+
+  /**
    * Compute vertical load from raw tension and endpoint geometry.
    * Avoids rounding error from using rounded angles.
    */
@@ -337,6 +377,7 @@ const CalcCore = (() => {
     calcLoadDistribution, calcTwoSlingTension,
     buildSling, computeVerticalLoad,
     getOrientationAxis,
-    computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling
+    computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling,
+    computeBeamEndPair
   };
 })();
