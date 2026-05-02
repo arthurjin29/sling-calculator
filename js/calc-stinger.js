@@ -74,7 +74,7 @@ const CalcStinger = (() => {
 
     if (topLen <= 0) topLen = 1;
     {
-      for (let iter = 0; iter < 15; iter++) {
+      for (let iter = 0; iter < 40; iter++) {
         const currentHook = { x: hookXY.x, y: hookXY.y, z: hookZ };
         const tA = findApexOnLine(groupALPs[0], groupALPs[1], pairCentreA, currentHook, minAngleRad);
         const tB = findApexOnLine(groupBLPs[0], groupBLPs[1], pairCentreB, currentHook, minAngleRad);
@@ -89,7 +89,8 @@ const CalcStinger = (() => {
         const newHookZ = Math.max(hzA, hzB);
 
         if (Math.abs(newHookZ - hookZ) < 0.001) break;
-        hookZ = newHookZ;
+        // Damped update to prevent oscillation at non-60° angles
+        hookZ = 0.5 * hookZ + 0.5 * newHookZ;
       }
 
       // Reposition both apexes so each top sling = exactly topLen
