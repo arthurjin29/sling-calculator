@@ -126,7 +126,13 @@
             </div>
             <div class="param-group">
               <label>Sling Length Tolerance</label>
-              <div><input type="number" id="sling-tolerance-mm" step="any" min="0" value="200"> <span class="unit">mm (±)</span></div>
+              <div>
+                <select id="sling-tolerance-mode">
+                  <option value="theoretical">Theoretical (no tolerance)</option>
+                  <option value="pct2_5" selected>±2.5% length (matched/measured slings)</option>
+                  <option value="pct12_5">±12.5% length (unmatched/site-modified)</option>
+                </select>
+              </div>
             </div>
           </div>
           <p class="hardware-note">Include rigging hardware weight (slings, shackles, beams) in the total suspended load.</p>
@@ -349,6 +355,12 @@
         <p class="angle-note">Angles shown as: from horizontal / from vertical. Critical sling = highest tension.</p>
         <p class="angle-note">*Headroom is the geometric distance from the highest LP to the hook point — it does not account for hook block, shackles, or rigging hardware.</p>
         <p class="check-row">Verification — Sum of vertical loads: <strong id="res-vload-check">—</strong> <span class="res-load-unit">t</span> (should equal total load)</p>
+      </div>
+
+      <div class="card" id="load-sharing-container" style="display:none">
+        <h2>Load-Sharing Tolerance — Bottom Tier</h2>
+        <p class="overlay-desc" id="load-sharing-desc"></p>
+        <div id="load-sharing-content"></div>
       </div>
 
       <div class="card" id="slack-leg-container" style="display:none">

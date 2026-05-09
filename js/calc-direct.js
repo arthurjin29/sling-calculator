@@ -63,7 +63,6 @@ const CalcDirect = (() => {
     const slackRaw = CalcCore.analyzeSlackLeg(liftingPoints, hook, totalLoad);
     const slackLegAnalysis = slackRaw ? {
       applicable: true,
-      toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
       baseMaxTension: CalcCore.round4(baseMaxTension),
       scenarios: slackRaw.scenarios.map(s => ({
         slackSlingId: s.slackSlingIndex + 1,
@@ -82,6 +81,12 @@ const CalcDirect = (() => {
       }
     } : { applicable: false, reason: 'Fewer than 4 slings — slack-leg analysis would leave a single load-bearing sling.' };
 
+    const loadSharingAnalysis = CalcCore.applyLoadSharingFactor(
+      slings.map(s => s.tension),
+      'direct',
+      shared.toleranceMode
+    );
+
     return {
       configType: 'direct',
       hook,
@@ -98,6 +103,7 @@ const CalcDirect = (() => {
       beams: [],
       intermediatePoints: [],
       slackLegAnalysis,
+      loadSharingAnalysis,
       warnings: {
         cogOutsidePolygon: !cogInsidePolygon,
         negativeTension: hasNegativeTension,

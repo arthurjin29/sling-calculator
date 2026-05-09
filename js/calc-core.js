@@ -439,6 +439,82 @@ const CalcCore = (() => {
     };
   }
 
+  /**
+   * Load-sharing tolerance factor — applies an empirical multiplier to the
+   * theoretical max-loaded sling tension to account for real-world sling-length
+   * tolerance. Factors are from Nobles "Lifting the Bar" Edition 2 (crane-scale
+   * measurements on 4-leg sling lifts with one leg shortened).
+   *
+   * Tolerance is expressed as a PROPORTION of sling length, not an absolute
+   * length, because load-share degradation is governed by the ratio (Δ/L), not
+   * by mm. Nobles' "1 chain link" and "5 chain links" data points are mapped to
+   * the closest standard percentage points: 2.5% and 12.5% respectively.
+   *
+   * Each calculator's configType is mapped to one of three Nobles arrangements:
+   *   direct          → Nobles A (Single Point)
+   *   spreader-beam   → Nobles D (Spreader Beam)
+   *   lifting-beam    → spreader-equivalent (top-suspended beam separates legs)
+   *   double-parallel → spreader-equivalent (two parallel beams)
+   *   stinger         → Nobles C (Stinger)
+   *   double-cascade  → stinger-equivalent (master + 2 slaves cascade)
+   *
+   * Modes:
+   *   'theoretical' → factor=1.0 (rigid-body solver result, no tolerance)
+   *   'pct2_5'      → ±2.5% length deviation (matched / measured chain slings)
+   *   'pct12_5'     → ±12.5% length deviation (unmatched / site-modified slings)
+   */
+  const LOAD_SHARING_FACTORS = {
+    'direct':          { pct2_5: 1.88, pct12_5: null },  // Nobles A: 47% / 25%; heavy tolerance not tested
+    'spreader-beam':   { pct2_5: 1.18, pct12_5: 1.68 },  // Nobles D: 29.5% / 25%, 42% / 25%
+    'lifting-beam':    { pct2_5: 1.18, pct12_5: 1.68 },  // mapped to spreader
+    'double-parallel': { pct2_5: 1.18, pct12_5: 1.68 },  // mapped to spreader
+    'stinger':         { pct2_5: 1.36, pct12_5: 2.00 },  // Nobles C: 34% / 25%, 50% / 25%
+    'double-cascade':  { pct2_5: 1.36, pct12_5: 2.00 }   // mapped to stinger
+  };
+
+  function applyLoadSharingFactor(tensions, configType, toleranceMode) {
+    const baseMaxTension = round4(Math.max(...tensions));
+    const noblesSource = "Nobles 'Lifting the Bar' Edition 2 — empirical 4-leg testing";
+
+    if (toleranceMode === 'theoretical' || toleranceMode == null) {
+      return {
+        toleranceMode: 'theoretical',
+        applicable: true,
+        factor: 1.0,
+        baseMaxTension,
+        adjustedMaxTension: baseMaxTension,
+        source: 'Theoretical (rigid-body geometric solver, no tolerance applied)',
+        note: ''
+      };
+    }
+
+    const cfg = LOAD_SHARING_FACTORS[configType];
+    if (!cfg) {
+      return {
+        toleranceMode, applicable: false, factor: null,
+        baseMaxTension, adjustedMaxTension: null, source: noblesSource,
+        note: `No tolerance factor available for configType '${configType}'.`
+      };
+    }
+
+    const factor = cfg[toleranceMode];
+    if (factor == null) {
+      return {
+        toleranceMode, applicable: false, factor: null,
+        baseMaxTension, adjustedMaxTension: null, source: noblesSource,
+        note: `Nobles did not measure ${toleranceMode === 'pct12_5' ? '±12.5%' : '±2.5%'} length deviation for this arrangement — use a lighter tolerance or theoretical.`
+      };
+    }
+
+    return {
+      toleranceMode, applicable: true, factor,
+      baseMaxTension,
+      adjustedMaxTension: round4(baseMaxTension * factor),
+      source: noblesSource,
+      note: ''
+    };
+  }
+
   return {
     degToRad, radToDeg, round2, round4,
     horizontalDist, dist3D, midpoint, lerp3D,
@@ -449,6 +525,8 @@ const CalcCore = (() => {
     calcLoadDistribution, calcTwoSlingTension,
     buildSling, computeVerticalLoad,
     analyzeSlackLeg,
+    applyLoadSharingFactor,
+    LOAD_SHARING_FACTORS,
     getOrientationAxis,
     computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling,
     computeBeamEndPair

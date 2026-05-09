@@ -669,6 +669,153 @@ runSlackLegTest('slack-double-cas-not-applicable', doubleCasCalc,
 }
 
 
+// === LOAD-SHARING TOLERANCE FACTOR (Nobles) ===
+// Tests for CalcCore.applyLoadSharingFactor — pure unit tests, no calculator wiring yet.
+function runLSFTest(name, tensions, configType, mode, expected) {
+  totalTests++;
+  const errs = [];
+  const r = CalcCore.applyLoadSharingFactor(tensions, configType, mode);
+
+  if (expected.applicable !== undefined && r.applicable !== expected.applicable)
+    errs.push(`applicable: expected ${expected.applicable}, got ${r.applicable}`);
+  if (expected.factor !== undefined && r.factor !== expected.factor)
+    errs.push(`factor: expected ${expected.factor}, got ${r.factor}`);
+  if (expected.adjustedMaxTension !== undefined &&
+      Math.abs((r.adjustedMaxTension ?? 0) - expected.adjustedMaxTension) > 0.001)
+    errs.push(`adjustedMaxTension: expected ${expected.adjustedMaxTension}, got ${r.adjustedMaxTension}`);
+  if (expected.toleranceMode !== undefined && r.toleranceMode !== expected.toleranceMode)
+    errs.push(`toleranceMode: expected ${expected.toleranceMode}, got ${r.toleranceMode}`);
+  if (expected.baseMaxTension !== undefined &&
+      Math.abs(r.baseMaxTension - expected.baseMaxTension) > 0.001)
+    errs.push(`baseMaxTension: expected ${expected.baseMaxTension}, got ${r.baseMaxTension}`);
+
+  if (errs.length > 0) failures.push({ name, errors: errs });
+  else passCount++;
+}
+
+// Theoretical mode — factor 1, applicable for any config (or none)
+runLSFTest('lsf-theoretical-direct', [4, 3, 2, 1], 'direct', 'theoretical',
+  { applicable: true, factor: 1.0, baseMaxTension: 4, adjustedMaxTension: 4, toleranceMode: 'theoretical' });
+runLSFTest('lsf-theoretical-no-config', [5], null, 'theoretical',
+  { applicable: true, factor: 1.0, baseMaxTension: 5, adjustedMaxTension: 5 });
+runLSFTest('lsf-theoretical-undefined-mode', [10, 8], 'direct', undefined,
+  { applicable: true, factor: 1.0, baseMaxTension: 10, adjustedMaxTension: 10, toleranceMode: 'theoretical' });
+
+// mm50 — direct measurements from Nobles
+runLSFTest('lsf-pct2_5-direct', [5, 4, 3, 2], 'direct', 'pct2_5',
+  { applicable: true, factor: 1.88, baseMaxTension: 5, adjustedMaxTension: 9.4 });
+runLSFTest('lsf-pct2_5-spreader', [5, 4, 3, 2], 'spreader-beam', 'pct2_5',
+  { applicable: true, factor: 1.18, baseMaxTension: 5, adjustedMaxTension: 5.9 });
+runLSFTest('lsf-pct2_5-stinger', [5, 4, 3, 2], 'stinger', 'pct2_5',
+  { applicable: true, factor: 1.36, baseMaxTension: 5, adjustedMaxTension: 6.8 });
+
+// mm50 — equivalents (mapped configs)
+runLSFTest('lsf-pct2_5-liftbeam-as-spreader', [5], 'lifting-beam', 'pct2_5',
+  { applicable: true, factor: 1.18, adjustedMaxTension: 5.9 });
+runLSFTest('lsf-pct2_5-doublepar-as-spreader', [5], 'double-parallel', 'pct2_5',
+  { applicable: true, factor: 1.18, adjustedMaxTension: 5.9 });
+runLSFTest('lsf-pct2_5-doublecas-as-stinger', [5], 'double-cascade', 'pct2_5',
+  { applicable: true, factor: 1.36, adjustedMaxTension: 6.8 });
+
+// mm250 — Nobles measured for spreader+stinger families only
+runLSFTest('lsf-pct12_5-spreader', [10], 'spreader-beam', 'pct12_5',
+  { applicable: true, factor: 1.68, adjustedMaxTension: 16.8 });
+runLSFTest('lsf-pct12_5-stinger', [10], 'stinger', 'pct12_5',
+  { applicable: true, factor: 2.00, adjustedMaxTension: 20.0 });
+
+// mm250 — direct: NOT measured by Nobles → applicable=false
+runLSFTest('lsf-pct12_5-direct-not-measured', [10], 'direct', 'pct12_5',
+  { applicable: false, factor: null });
+
+// Unknown configType → applicable=false (theoretical mode is the safe fallback)
+runLSFTest('lsf-pct2_5-unknown-config', [10], 'unknown-arrangement', 'pct2_5',
+  { applicable: false, factor: null });
+
+// baseMaxTension picks max regardless of order
+runLSFTest('lsf-base-picks-max', [1, 5, 3, 2], 'spreader-beam', 'pct2_5',
+  { baseMaxTension: 5, factor: 1.18, adjustedMaxTension: 5.9 });
+
+
+// === LOAD-SHARING INTEGRATION (per-config) ===
+// Verifies each calculator emits result.loadSharingAnalysis with the right factor.
+function runLSFIntegrationTest(name, calcFn, shared, config, expectedConfigType, expectedFactor) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = calcFn(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+
+  const lsa = r.loadSharingAnalysis;
+  if (!lsa) { errs.push('loadSharingAnalysis missing'); }
+  else {
+    if (r.configType !== expectedConfigType)
+      errs.push(`configType: expected ${expectedConfigType}, got ${r.configType}`);
+    if (lsa.factor !== expectedFactor)
+      errs.push(`factor: expected ${expectedFactor}, got ${lsa.factor}`);
+
+    // baseMaxTension must equal max of BOTTOM-TIER tensions only — Nobles tested
+    // the 4 load-attached chains (bottom tier). Top slings above a spreader/stinger
+    // are statically determinate 2-leg geometry and don't share this tolerance issue.
+    const bottomTier = r.tiers.find(t => /bottom/i.test(t.name)) || r.tiers[0];
+    const expectedBase = Math.max(...bottomTier.slings.map(s => s.tension));
+    if (Math.abs(lsa.baseMaxTension - CalcCore.round4(expectedBase)) > 0.01)
+      errs.push(`baseMaxTension ${lsa.baseMaxTension} != max(bottom tier) ${expectedBase}`);
+
+    // adjustedMaxTension == baseMaxTension * factor (when applicable)
+    if (lsa.applicable && Math.abs(lsa.adjustedMaxTension - CalcCore.round4(lsa.baseMaxTension * lsa.factor)) > 0.01)
+      errs.push(`adjustedMaxTension ${lsa.adjustedMaxTension} != baseMaxTension * factor`);
+  }
+
+  if (errs.length > 0) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+
+// Direct config — tolerance modes
+runLSFIntegrationTest('integ-direct-theoretical', directCalc,
+  { liftingPoints: squareLPs(6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMode: 'theoretical' },
+  {}, 'direct', 1.0);
+
+runLSFIntegrationTest('integ-direct-pct2_5', directCalc,
+  { liftingPoints: squareLPs(6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMode: 'pct2_5' },
+  {}, 'direct', 1.88);
+
+runLSFIntegrationTest('integ-direct-default-no-mode', directCalc,
+  { liftingPoints: squareLPs(6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10 },
+  {}, 'direct', 1.0);
+
+// Spreader, stinger, lift-beam, double-par, double-cas — mm50 mode
+runLSFIntegrationTest('integ-spreader-pct2_5', spreaderCalc,
+  { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMode: 'pct2_5' },
+  { beamLength: 6, orientation: 'lengthwise' }, 'spreader-beam', 1.18);
+
+runLSFIntegrationTest('integ-stinger-pct2_5', stingerCalc,
+  { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMode: 'pct2_5' },
+  { topSlingLength: 1 }, 'stinger', 1.36);
+
+runLSFIntegrationTest('integ-liftbeam-pct2_5', liftbeamCalc,
+  { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMode: 'pct2_5' },
+  { beamLength: 6, orientation: 'lengthwise' }, 'lifting-beam', 1.18);
+
+runLSFIntegrationTest('integ-doublepar-pct2_5', doubleParCalc,
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 15, toleranceMode: 'pct2_5' },
+  { beamLengthA: 3, beamLengthB: 3, orientationA: 'widthwise', orientationB: 'widthwise', bottomSlingLen: 2 },
+  'double-parallel', 1.18);
+
+runLSFIntegrationTest('integ-doublecas-pct2_5', doubleCasCalc,
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 20, toleranceMode: 'pct2_5' },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, masterOrientation: 'lengthwise', bottomSlingLen: 2 },
+  'double-cascade', 1.36);
+
+// mm250 — confirm spreader/stinger families work
+runLSFIntegrationTest('integ-spreader-pct12_5', spreaderCalc,
+  { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMode: 'pct12_5' },
+  { beamLength: 6, orientation: 'lengthwise' }, 'spreader-beam', 1.68);
+
+runLSFIntegrationTest('integ-stinger-pct12_5', stingerCalc,
+  { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMode: 'pct12_5' },
+  { topSlingLength: 1 }, 'stinger', 2.00);
+
+
 // ── Report ──
 console.log('\n' + '='.repeat(60));
 console.log(`RESULTS: ${passCount} passed, ${failures.length} failed, ${totalTests} total`);

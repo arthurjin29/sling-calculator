@@ -135,6 +135,12 @@ window.CalcDoublePar = (() => {
     const actualBeamLenA = C.dist3D(beamA1, beamA2);
     const actualBeamLenB = C.dist3D(beamB1, beamB2);
 
+    const loadSharingAnalysis = C.applyLoadSharingFactor(
+      bottomSlings.map(s => s.tension),
+      'double-parallel',
+      shared.toleranceMode
+    );
+
     return {
       configType: 'double-parallel',
       hook: { x: C.round4(hook.x), y: C.round4(hook.y), z: C.round4(hook.z) },
@@ -148,6 +154,7 @@ window.CalcDoublePar = (() => {
         { name: 'Bottom Slings', slings: bottomSlings },
         { name: 'Top Slings', slings: topSlings }
       ],
+      loadSharingAnalysis,
       beams: [
         {
           name: 'Beam A',

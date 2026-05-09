@@ -319,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
           cog: calcInputs.cog,
           minAngleDeg: calcInputs.minAngle,
           totalLoad: calcInputs.totalLoad,
-          toleranceMm: calcInputs.toleranceMm
+          toleranceMode: calcInputs.toleranceMode
         },
         inputs.configData
       );
@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
       cog: conv(inputs.cog),
       totalLoad: inputs.totalLoad / T_TO_USTON,
       minAngle: inputs.minAngle,
-      toleranceMm: inputs.toleranceMm
+      toleranceMode: inputs.toleranceMode
     };
     // Convert beam lengths in configData
     if (inputs.configData.beamLength) inputs.configData.beamLength /= M_TO_FT;
@@ -423,7 +423,14 @@ document.addEventListener('DOMContentLoaded', () => {
           ...r.slackLegAnalysis.worstCase,
           maxTension: r.slackLegAnalysis.worstCase.maxTension * T_TO_USTON
         }
-      } : r.slackLegAnalysis
+      } : r.slackLegAnalysis,
+      loadSharingAnalysis: r.loadSharingAnalysis ? {
+        ...r.loadSharingAnalysis,
+        baseMaxTension: r.loadSharingAnalysis.baseMaxTension != null
+          ? r.loadSharingAnalysis.baseMaxTension * T_TO_USTON : null,
+        adjustedMaxTension: r.loadSharingAnalysis.adjustedMaxTension != null
+          ? r.loadSharingAnalysis.adjustedMaxTension * T_TO_USTON : null
+      } : r.loadSharingAnalysis
     };
   }
 
@@ -516,10 +523,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    const toleranceEl = document.getElementById('sling-tolerance-mm');
-    const toleranceMm = toleranceEl ? (parseFloat(toleranceEl.value) || 200) : 200;
+    const toleranceModeEl = document.getElementById('sling-tolerance-mode');
+    const toleranceMode = toleranceModeEl ? toleranceModeEl.value : 'theoretical';
 
-    return { liftingPoints, cog, totalLoad, minAngle, toleranceMm, configType: currentConfig, configData: readConfigData(currentConfig) };
+    return { liftingPoints, cog, totalLoad, minAngle, toleranceMode, configType: currentConfig, configData: readConfigData(currentConfig) };
   }
 
   function parseRequiredFloat(id, label) {
@@ -734,7 +741,60 @@ document.addEventListener('DOMContentLoaded', () => {
       ipContainer.style.display = 'none';
     }
 
+    renderLoadSharingCard(r, dp, resLoadUnit);
     renderSlackLegCard(r, dp, resLoadUnit);
+  }
+
+  function renderLoadSharingCard(r, dp, resLoadUnit) {
+    const card = document.getElementById('load-sharing-container');
+    const desc = document.getElementById('load-sharing-desc');
+    const content = document.getElementById('load-sharing-content');
+    if (!card) return;
+    content.textContent = '';
+
+    const lsa = r.loadSharingAnalysis;
+    if (!lsa) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const modeLabel = {
+      'theoretical': 'Theoretical (no tolerance)',
+      'pct2_5': '±2.5% length (matched/measured slings)',
+      'pct12_5': '±12.5% length (unmatched/site-modified)'
+    }[lsa.toleranceMode] || lsa.toleranceMode;
+
+    desc.textContent = `Mode: ${modeLabel}. Source: ${lsa.source}.`;
+
+    if (!lsa.applicable) {
+      const note = document.createElement('div');
+      note.style.cssText = 'margin: 0.5rem 0; padding: 0.6rem 0.8rem; background: rgba(255,200,0,0.10); border-left: 3px solid var(--warning, #c98); border-radius: 4px;';
+      note.textContent = lsa.note || 'Tolerance factor not applicable for this configuration / mode.';
+      content.appendChild(note);
+      return;
+    }
+
+    const factorPct = ((lsa.factor - 1) * 100).toFixed(0);
+    const headline = document.createElement('div');
+    headline.style.cssText = 'margin: 0.5rem 0 0.75rem; padding: 0.6rem 0.8rem; background: rgba(255,200,0,0.10); border-left: 3px solid var(--danger); border-radius: 4px;';
+
+    const wcStrong = document.createElement('strong');
+    wcStrong.textContent = 'Design max-leg tension (bottom tier): ';
+    headline.appendChild(wcStrong);
+    const tStrong = document.createElement('strong');
+    tStrong.textContent = `${lsa.adjustedMaxTension.toFixed(dp)} ${resLoadUnit}`;
+    headline.appendChild(tStrong);
+
+    if (lsa.factor !== 1.0) {
+      const span = document.createElement('span');
+      span.style.opacity = '0.75';
+      span.textContent = ` (${lsa.factor.toFixed(2)}× theoretical ${lsa.baseMaxTension.toFixed(dp)} ${resLoadUnit}, +${factorPct}%)`;
+      headline.appendChild(span);
+    }
+    content.appendChild(headline);
+
+    const cite = document.createElement('p');
+    cite.style.cssText = 'margin: 0.4rem 0 0; font-size: 0.85em; opacity: 0.8;';
+    cite.textContent = 'Factor based on Nobles "Lifting the Bar" Edition 2 — empirical crane-scale measurements on a 4-leg sling lifting a symmetric load with one leg shortened. Tolerance is expressed as a proportion of sling length because load-share degradation scales with Δ/L, not absolute mm. Applies to the load-attached (bottom-tier) slings only; top slings above a spreader/stinger are statically determinate 2-leg geometry and unaffected.';
+    content.appendChild(cite);
   }
 
   function renderSlackLegCard(r, dp, resLoadUnit) {
@@ -748,15 +808,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!sla) { card.style.display = 'none'; return; }
 
     card.style.display = '';
-    const tolMm = sla.toleranceMm != null ? sla.toleranceMm : 200;
 
     if (!sla.applicable) {
-      desc.textContent = `Tolerance: ±${tolMm} mm. ${sla.reason || 'Not applicable.'}`;
+      desc.textContent = sla.reason || 'Not applicable.';
       return;
     }
 
     const slings = r.tiers[0].slings;
-    desc.textContent = `Per-sling tolerance: ±${tolMm} mm. Each sling assumed slack in turn; load redistributed across the remaining ${slings.length - 1} slings via least-squares.`;
+    desc.textContent = `Limiting case (one leg fully unloaded). Each sling assumed slack in turn; load redistributed across the remaining ${slings.length - 1} slings via least-squares.`;
 
     const wc = sla.worstCase;
     const headline = document.createElement('div');

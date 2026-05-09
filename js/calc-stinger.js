@@ -169,6 +169,12 @@ const CalcStinger = (() => {
 
     const maxLPz = Math.max(...liftingPoints.map(lp => lp.z));
 
+    const loadSharingAnalysis = C.applyLoadSharingFactor(
+      bottomSlings.map(s => s.tension),
+      'stinger',
+      shared.toleranceMode
+    );
+
     return {
       configType: 'stinger',
       hook,
@@ -182,6 +188,7 @@ const CalcStinger = (() => {
         { name: 'Bottom Slings', slings: bottomSlings },
         { name: 'Top Slings', slings: topSlings }
       ],
+      loadSharingAnalysis,
       beams: [],
       intermediatePoints: [
         { x: C.round4(apexA.x), y: C.round4(apexA.y), z: C.round4(apexA.z), label: 'Apex A' },

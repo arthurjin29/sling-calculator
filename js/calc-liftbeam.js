@@ -161,6 +161,12 @@ const CalcLiftBeam = (() => {
     // 15. Headroom
     const maxLPz = Math.max(...liftingPoints.map(lp => lp.z));
 
+    const loadSharingAnalysis = C.applyLoadSharingFactor(
+      slings.map(s => s.tension),
+      'lifting-beam',
+      shared.toleranceMode
+    );
+
     return {
       configType: 'lifting-beam',
       hook,
@@ -171,6 +177,7 @@ const CalcLiftBeam = (() => {
       minAngleDeg,
       criticalSling: { tier: 'bottom', id: slings[criticalIndex].id },
       tiers: [{ name: 'Bottom Slings', slings }],
+      loadSharingAnalysis,
       beams: [{
         name: 'Lifting Beam',
         endA: { x: C.round4(endA.x), y: C.round4(endA.y), z: C.round4(endA.z) },

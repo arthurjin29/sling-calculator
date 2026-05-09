@@ -191,6 +191,12 @@ window.CalcSpreader = (() => {
     // ── 14. Headroom ──
     const maxLPz = Math.max(...liftingPoints.map(p => p.z));
 
+    const loadSharingAnalysis = C.applyLoadSharingFactor(
+      bottomSlings.map(s => s.tension),
+      'spreader-beam',
+      shared.toleranceMode
+    );
+
     return {
       configType: 'spreader-beam',
       hook: { x: C.round4(hook.x), y: C.round4(hook.y), z: C.round4(hook.z) },
@@ -204,6 +210,7 @@ window.CalcSpreader = (() => {
         { name: 'Bottom Slings', slings: bottomSlings },
         { name: 'Top Slings', slings: topSlings }
       ],
+      loadSharingAnalysis,
       beams: [{
         name: 'Spreader Beam',
         endA: { x: C.round4(endA.x), y: C.round4(endA.y), z: C.round4(endA.z) },

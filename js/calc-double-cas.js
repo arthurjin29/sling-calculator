@@ -239,6 +239,12 @@ window.CalcDoubleCas = (() => {
     // ── 13. Result ──
     const maxLPz = Math.max(...liftingPoints.map(p => p.z));
 
+    const loadSharingAnalysis = C.applyLoadSharingFactor(
+      bottomSlings.map(s => s.tension),
+      'double-cascade',
+      shared.toleranceMode
+    );
+
     return {
       configType: 'double-cascade',
       hook: { x: C.round4(hook.x), y: C.round4(hook.y), z: C.round4(hook.z) },
@@ -253,6 +259,7 @@ window.CalcDoubleCas = (() => {
         { name: 'Middle Slings', slings: middleSlings },
         { name: 'Top Slings', slings: topSlings }
       ],
+      loadSharingAnalysis,
       beams: [
         {
           name: 'Main Beam',
