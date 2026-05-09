@@ -318,7 +318,8 @@ document.addEventListener('DOMContentLoaded', () => {
           liftingPoints: calcInputs.liftingPoints,
           cog: calcInputs.cog,
           minAngleDeg: calcInputs.minAngle,
-          totalLoad: calcInputs.totalLoad
+          totalLoad: calcInputs.totalLoad,
+          toleranceMm: calcInputs.toleranceMm
         },
         inputs.configData
       );
@@ -363,7 +364,8 @@ document.addEventListener('DOMContentLoaded', () => {
       liftingPoints: inputs.liftingPoints.map(conv),
       cog: conv(inputs.cog),
       totalLoad: inputs.totalLoad / T_TO_USTON,
-      minAngle: inputs.minAngle
+      minAngle: inputs.minAngle,
+      toleranceMm: inputs.toleranceMm
     };
     // Convert beam lengths in configData
     if (inputs.configData.beamLength) inputs.configData.beamLength /= M_TO_FT;
@@ -408,7 +410,20 @@ document.addEventListener('DOMContentLoaded', () => {
       intermediatePoints: r.intermediatePoints.map(p => ({
         ...p,
         x: p.x * M_TO_FT, y: p.y * M_TO_FT, z: p.z * M_TO_FT
-      }))
+      })),
+      slackLegAnalysis: r.slackLegAnalysis && r.slackLegAnalysis.applicable ? {
+        ...r.slackLegAnalysis,
+        baseMaxTension: r.slackLegAnalysis.baseMaxTension * T_TO_USTON,
+        scenarios: r.slackLegAnalysis.scenarios.map(sc => ({
+          ...sc,
+          tensions: sc.tensions.map(t => t * T_TO_USTON),
+          maxTension: sc.maxTension * T_TO_USTON
+        })),
+        worstCase: {
+          ...r.slackLegAnalysis.worstCase,
+          maxTension: r.slackLegAnalysis.worstCase.maxTension * T_TO_USTON
+        }
+      } : r.slackLegAnalysis
     };
   }
 
@@ -501,7 +516,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    return { liftingPoints, cog, totalLoad, minAngle, configType: currentConfig, configData: readConfigData(currentConfig) };
+    const toleranceEl = document.getElementById('sling-tolerance-mm');
+    const toleranceMm = toleranceEl ? (parseFloat(toleranceEl.value) || 200) : 200;
+
+    return { liftingPoints, cog, totalLoad, minAngle, toleranceMm, configType: currentConfig, configData: readConfigData(currentConfig) };
   }
 
   function parseRequiredFloat(id, label) {
@@ -715,6 +733,88 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       ipContainer.style.display = 'none';
     }
+
+    renderSlackLegCard(r, dp, resLoadUnit);
+  }
+
+  function renderSlackLegCard(r, dp, resLoadUnit) {
+    const card = document.getElementById('slack-leg-container');
+    const desc = document.getElementById('slack-leg-desc');
+    const content = document.getElementById('slack-leg-content');
+    if (!card) return;
+    content.textContent = '';
+
+    const sla = r.slackLegAnalysis;
+    if (!sla) { card.style.display = 'none'; return; }
+
+    card.style.display = '';
+    const tolMm = sla.toleranceMm != null ? sla.toleranceMm : 200;
+
+    if (!sla.applicable) {
+      desc.textContent = `Tolerance: ±${tolMm} mm. ${sla.reason || 'Not applicable.'}`;
+      return;
+    }
+
+    const slings = r.tiers[0].slings;
+    desc.textContent = `Per-sling tolerance: ±${tolMm} mm. Each sling assumed slack in turn; load redistributed across the remaining ${slings.length - 1} slings via least-squares.`;
+
+    const wc = sla.worstCase;
+    const headline = document.createElement('div');
+    headline.style.cssText = 'margin: 0.5rem 0 0.75rem; padding: 0.6rem 0.8rem; background: rgba(255, 200, 0, 0.10); border-left: 3px solid var(--danger); border-radius: 4px;';
+    const pctSign = wc.percentOverBase >= 0 ? '+' : '';
+
+    const wcStrong = document.createElement('strong');
+    wcStrong.textContent = 'Worst case: ';
+    headline.appendChild(wcStrong);
+    headline.appendChild(document.createTextNode(`Sling ${wc.criticalSlingId} reaches `));
+    const tStrong = document.createElement('strong');
+    tStrong.textContent = `${wc.maxTension.toFixed(dp)} ${resLoadUnit}`;
+    headline.appendChild(tStrong);
+    headline.appendChild(document.createTextNode(` when Sling ${wc.slackSlingId} is slack `));
+    const span = document.createElement('span');
+    span.style.opacity = '0.75';
+    span.textContent = `(${pctSign}${wc.percentOverBase.toFixed(1)}% over base critical ${sla.baseMaxTension.toFixed(dp)} ${resLoadUnit})`;
+    headline.appendChild(span);
+    content.appendChild(headline);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'table-wrap';
+    const table = document.createElement('table');
+
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    const headers = ['Slack Sling'];
+    slings.forEach(s => headers.push(`T${s.id} (${resLoadUnit})`));
+    headers.push('Max', 'Critical', 'Status');
+    headers.forEach(h => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    sla.scenarios.forEach(sc => {
+      const tr = document.createElement('tr');
+      if (sc.slackSlingId === wc.slackSlingId) tr.classList.add('critical-row');
+      const cells = [`Sling ${sc.slackSlingId}`];
+      sc.tensions.forEach((t, idx) => {
+        cells.push((idx + 1) === sc.slackSlingId ? '—' : t.toFixed(dp));
+      });
+      cells.push(sc.maxTension.toFixed(dp));
+      cells.push(`Sling ${sc.criticalSlingId}`);
+      cells.push(sc.infeasible ? 'check geometry' : 'OK');
+      cells.forEach(text => {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    content.appendChild(wrap);
   }
 
   function displayWarnings(warnings) {

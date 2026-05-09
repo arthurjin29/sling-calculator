@@ -170,6 +170,11 @@ window.CalcDoublePar = (() => {
         { x: C.round4(beamB1.x), y: C.round4(beamB1.y), z: C.round4(beamB1.z), label: 'Beam B End 1' },
         { x: C.round4(beamB2.x), y: C.round4(beamB2.y), z: C.round4(beamB2.z), label: 'Beam B End 2' }
       ],
+      slackLegAnalysis: {
+        applicable: false,
+        toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
+        reason: 'Tolerance check requires geometric perturbation analysis for paired sling configurations (not yet implemented).'
+      },
       warnings: {
         cogOutsidePolygon,
         negativeTension,

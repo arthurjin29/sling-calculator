@@ -279,6 +279,11 @@ window.CalcDoubleCas = (() => {
         { x: C.round4(masterEnds.endA.x), y: C.round4(masterEnds.endA.y), z: C.round4(masterEnds.endA.z), label: 'Main End A' },
         { x: C.round4(masterEnds.endB.x), y: C.round4(masterEnds.endB.y), z: C.round4(masterEnds.endB.z), label: 'Main End B' }
       ],
+      slackLegAnalysis: {
+        applicable: false,
+        toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
+        reason: 'Tolerance check requires geometric perturbation analysis for paired sling configurations (not yet implemented).'
+      },
       warnings: {
         cogOutsidePolygon,
         negativeTension,

@@ -531,6 +531,144 @@ runTest('stinger-30-auto', stingerCalc,
   { liftingPoints: rectLPs(10, 5), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 30, totalLoad: 25 },
   { topSlingLength: 0 });
 
+
+// === SLACK-LEG TOLERANCE CHECK ===
+function runSlackLegTest(name, calcFn, shared, config, opts = {}) {
+  totalTests++;
+  const errs = [];
+
+  let result;
+  try {
+    result = calcFn(shared, config);
+  } catch (e) {
+    failures.push({ name, error: `EXCEPTION: ${e.message}`, shared, config });
+    return;
+  }
+
+  const sla = result.slackLegAnalysis;
+
+  if (opts.expectApplicable === false) {
+    if (!sla || sla.applicable !== false) errs.push(`expected applicable=false, got ${sla && sla.applicable}`);
+  } else {
+    if (!sla || sla.applicable !== true) {
+      errs.push(`expected applicable=true, got ${sla && sla.applicable}`);
+    } else {
+      const N = result.tiers[0].slings.length;
+      if (sla.scenarios.length !== N) errs.push(`expected ${N} scenarios, got ${sla.scenarios.length}`);
+
+      sla.scenarios.forEach((sc, i) => {
+        // Slack sling tension must be 0
+        const slackT = sc.tensions[sc.slackSlingId - 1];
+        if (Math.abs(slackT) > 0.001) errs.push(`scenario ${i}: slack sling tension ${slackT} != 0`);
+        // Max tension must equal max of tensions array
+        const calcMax = Math.max(...sc.tensions);
+        if (Math.abs(calcMax - sc.maxTension) > 0.01) errs.push(`scenario ${i}: maxTension ${sc.maxTension} != actual max ${calcMax}`);
+        // Critical sling must point to the max
+        if (Math.abs(sc.tensions[sc.criticalSlingId - 1] - sc.maxTension) > 0.01)
+          errs.push(`scenario ${i}: critical sling tension doesn't match maxTension`);
+        // No NaN/Infinity
+        sc.tensions.forEach(t => { if (!isFinite(t)) errs.push(`scenario ${i}: NaN tension`); });
+      });
+
+      // Worst-case max must >= base max (slack always increases load on a sling)
+      if (sla.worstCase.maxTension < sla.baseMaxTension - 0.01)
+        errs.push(`worstCase max ${sla.worstCase.maxTension} < base max ${sla.baseMaxTension}`);
+
+      if (opts.checkVerticalSum) {
+        // For 4-leg direct symmetric: verify that for each scenario, the sum of vertical
+        // components of remaining tensions equals totalLoad.
+        sla.scenarios.forEach((sc, i) => {
+          let sumV = 0;
+          for (let j = 0; j < sc.tensions.length; j++) {
+            if (j === sc.slackSlingId - 1) continue;
+            const lp = shared.liftingPoints[j];
+            const dx = result.hook.x - lp.x;
+            const dy = result.hook.y - lp.y;
+            const dz = result.hook.z - lp.z;
+            const L = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            const uz = dz / L;
+            sumV += sc.tensions[j] * uz;
+          }
+          if (Math.abs(sumV - shared.totalLoad) > 0.05)
+            errs.push(`scenario ${i}: sum of vertical tensions ${sumV.toFixed(3)} != totalLoad ${shared.totalLoad}`);
+        });
+      }
+    }
+  }
+
+  if (errs.length > 0) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+
+// 106-109: Direct slack-leg — applicability + math
+runSlackLegTest('slack-direct-symmetric-square', directCalc,
+  { liftingPoints: squareLPs(6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMm: 200 },
+  {}, { checkVerticalSum: true });
+
+runSlackLegTest('slack-direct-rect', directCalc,
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0.5, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 20, toleranceMm: 200 },
+  {}, { checkVerticalSum: true });
+
+runSlackLegTest('slack-direct-elevated-mixed', directCalc,
+  { liftingPoints: elevatedLPs(squareLPs(6), [0, 1, 2, 0.5]), cog: { x: 0, y: 0, z: 0.5 }, minAngleDeg: 45, totalLoad: 10, toleranceMm: 200 },
+  {}, { checkVerticalSum: true });
+
+runSlackLegTest('slack-direct-irregular', directCalc,
+  { liftingPoints: irregularLPs(), cog: { x: 0.5, y: 1, z: 0 }, minAngleDeg: 60, totalLoad: 8, toleranceMm: 200 },
+  {}, { checkVerticalSum: true });
+
+// 110-114: Paired configs must report applicable=false
+runSlackLegTest('slack-spreader-not-applicable', spreaderCalc,
+  { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMm: 200 },
+  { beamLength: 6, orientation: 'lengthwise' }, { expectApplicable: false });
+
+runSlackLegTest('slack-stinger-not-applicable', stingerCalc,
+  { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMm: 200 },
+  { topSlingLength: 1 }, { expectApplicable: false });
+
+runSlackLegTest('slack-liftbeam-not-applicable', liftbeamCalc,
+  { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMm: 200 },
+  { beamLength: 6, orientation: 'lengthwise' }, { expectApplicable: false });
+
+runSlackLegTest('slack-double-par-not-applicable', doubleParCalc,
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 15, toleranceMm: 200 },
+  { beamLengthA: 3, beamLengthB: 3, orientationA: 'widthwise', orientationB: 'widthwise', bottomSlingLen: 2 },
+  { expectApplicable: false });
+
+runSlackLegTest('slack-double-cas-not-applicable', doubleCasCalc,
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 20, toleranceMm: 200 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, masterOrientation: 'lengthwise', bottomSlingLen: 2 },
+  { expectApplicable: false });
+
+// 115: Symmetric square 4-leg analytical sanity:
+// With COG centred and symmetric LPs, dropping any 1 sling → remaining 3 share 10 t.
+// Worst-case sling tension should be the same regardless of which is dropped (by symmetry).
+{
+  totalTests++;
+  const r = directCalc(
+    { liftingPoints: squareLPs(6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 10, toleranceMm: 200 },
+    {}
+  );
+  const errs = [];
+  const maxes = r.slackLegAnalysis.scenarios.map(sc => sc.maxTension);
+  const allEqual = maxes.every(m => Math.abs(m - maxes[0]) < 0.01);
+  if (!allEqual) errs.push(`symmetric: scenario maxes differ: ${maxes.join(',')}`);
+  // For a centred COG with 4 symmetric LPs, dropping one → diagonally opposite sling
+  // goes to zero tension; the other two (perpendicular pair) each carry 10/(2·sin60°) =
+  // 5.7735 t. This is the classic "2× factor" — base critical was 10/(4·sin60°) =
+  // 2.887 t, so worst-case ≈ 2.0× base.
+  if (Math.abs(maxes[0] - 5.7735) > 0.05)
+    errs.push(`symmetric: expected slack max ~5.7735 t, got ${maxes[0]}`);
+  // Verify the 2× ratio over base critical
+  const baseMax = r.slackLegAnalysis.baseMaxTension;
+  const ratio = maxes[0] / baseMax;
+  if (Math.abs(ratio - 2.0) > 0.05)
+    errs.push(`symmetric: expected slack/base ratio ~2.0, got ${ratio.toFixed(3)}`);
+  if (errs.length > 0) failures.push({ name: 'slack-direct-symmetric-analytical', errors: errs, shared: {}, config: {} });
+  else passCount++;
+}
+
+
 // ── Report ──
 console.log('\n' + '='.repeat(60));
 console.log(`RESULTS: ${passCount} passed, ${failures.length} failed, ${totalTests} total`);
@@ -547,11 +685,13 @@ if (failures.length > 0) {
         console.log(`  - ${e}`);
       }
     }
-    // Print condensed inputs
-    const lps = f.shared.liftingPoints;
-    console.log(`  LPs: [${lps.map(p => `(${p.x},${p.y},${p.z})`).join(', ')}]`);
-    console.log(`  COG: (${f.shared.cog.x},${f.shared.cog.y},${f.shared.cog.z}), minAngle: ${f.shared.minAngleDeg}, load: ${f.shared.totalLoad}`);
-    if (Object.keys(f.config).length > 0)
+    // Print condensed inputs (when available)
+    if (f.shared && f.shared.liftingPoints) {
+      const lps = f.shared.liftingPoints;
+      console.log(`  LPs: [${lps.map(p => `(${p.x},${p.y},${p.z})`).join(', ')}]`);
+      console.log(`  COG: (${f.shared.cog.x},${f.shared.cog.y},${f.shared.cog.z}), minAngle: ${f.shared.minAngleDeg}, load: ${f.shared.totalLoad}`);
+    }
+    if (f.config && Object.keys(f.config).length > 0)
       console.log(`  Config: ${JSON.stringify(f.config)}`);
     console.log('');
   }

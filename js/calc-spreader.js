@@ -215,6 +215,11 @@ window.CalcSpreader = (() => {
         { x: C.round4(endA.x), y: C.round4(endA.y), z: C.round4(endA.z), label: 'Beam End A' },
         { x: C.round4(endB.x), y: C.round4(endB.y), z: C.round4(endB.z), label: 'Beam End B' }
       ],
+      slackLegAnalysis: {
+        applicable: false,
+        toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
+        reason: 'Tolerance check requires geometric perturbation analysis for paired sling configurations (not yet implemented).'
+      },
       warnings: {
         cogOutsidePolygon,
         negativeTension,

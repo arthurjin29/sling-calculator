@@ -124,6 +124,10 @@
               <label>Min Sling Angle</label>
               <div><input type="number" id="min-angle" step="any" min="30" max="89" value="60"> <span class="unit">° from horizontal</span></div>
             </div>
+            <div class="param-group">
+              <label>Sling Length Tolerance</label>
+              <div><input type="number" id="sling-tolerance-mm" step="any" min="0" value="200"> <span class="unit">mm (±)</span></div>
+            </div>
           </div>
           <p class="hardware-note">Include rigging hardware weight (slings, shackles, beams) in the total suspended load.</p>
         </div>
@@ -345,6 +349,12 @@
         <p class="angle-note">Angles shown as: from horizontal / from vertical. Critical sling = highest tension.</p>
         <p class="angle-note">*Headroom is the geometric distance from the highest LP to the hook point — it does not account for hook block, shackles, or rigging hardware.</p>
         <p class="check-row">Verification — Sum of vertical loads: <strong id="res-vload-check">—</strong> <span class="res-load-unit">t</span> (should equal total load)</p>
+      </div>
+
+      <div class="card" id="slack-leg-container" style="display:none">
+        <h2>Tolerance Check — Single Slack Leg</h2>
+        <p class="overlay-desc" id="slack-leg-desc"></p>
+        <div id="slack-leg-content"></div>
       </div>
 
       <div class="card" id="beam-details-container" style="display:none">

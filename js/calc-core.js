@@ -367,6 +367,78 @@ const CalcCore = (() => {
     return tension * vd / length;
   }
 
+  /**
+   * Slack-leg sensitivity analysis for a single-junction sling group.
+   * For each sling in turn, set its tension to 0 and redistribute the load
+   * across the remaining N-1 slings via least-squares (calcLoadDistribution).
+   * Returns per-scenario tensions + the worst-case scenario across all slings.
+   *
+   * Only meaningful when N >= 4 — with N=3, dropping one leaves 2 slings which
+   * is statically determinate and the redistribution is unphysical without a
+   * geometric perturbation model. Returns null for N<4 so the caller can flag
+   * the analysis as not applicable.
+   *
+   * @param {Array<{x,y,z}>} points - sling lower attachments (e.g. LPs)
+   * @param {{x,y,z}} hook - common upper convergence point
+   * @param {number} totalLoad - total suspended load
+   * @returns {object|null} { scenarios:[...], worstCase:{...} } or null if N<4
+   */
+  function analyzeSlackLeg(points, hook, totalLoad) {
+    const N = points.length;
+    if (N < 4) return null;
+
+    const scenarios = [];
+    let worstMaxTension = -Infinity;
+    let worstSlackIdx = 0;
+    let worstCriticalIdx = 0;
+
+    for (let slackIdx = 0; slackIdx < N; slackIdx++) {
+      const remaining = points.filter((_, j) => j !== slackIdx);
+      const partial = calcLoadDistribution(remaining, hook, totalLoad);
+
+      const fullTensions = Array(N).fill(0);
+      let k = 0;
+      for (let j = 0; j < N; j++) {
+        if (j === slackIdx) continue;
+        fullTensions[j] = partial[k++];
+      }
+
+      let maxT = -Infinity;
+      let critIdx = 0;
+      let hasNeg = false;
+      for (let j = 0; j < N; j++) {
+        if (fullTensions[j] < -0.001) hasNeg = true;
+        if (fullTensions[j] > maxT) {
+          maxT = fullTensions[j];
+          critIdx = j;
+        }
+      }
+
+      scenarios.push({
+        slackSlingIndex: slackIdx,
+        tensions: fullTensions.map(round4),
+        maxTension: round4(maxT),
+        criticalSlingIndex: critIdx,
+        infeasible: hasNeg
+      });
+
+      if (maxT > worstMaxTension) {
+        worstMaxTension = maxT;
+        worstSlackIdx = slackIdx;
+        worstCriticalIdx = critIdx;
+      }
+    }
+
+    return {
+      scenarios,
+      worstCase: {
+        slackSlingIndex: worstSlackIdx,
+        criticalSlingIndex: worstCriticalIdx,
+        maxTension: round4(worstMaxTension)
+      }
+    };
+  }
+
   return {
     degToRad, radToDeg, round2, round4,
     horizontalDist, dist3D, midpoint, lerp3D,
@@ -376,6 +448,7 @@ const CalcCore = (() => {
     transposeNxM, matMxNMultiply,
     calcLoadDistribution, calcTwoSlingTension,
     buildSling, computeVerticalLoad,
+    analyzeSlackLeg,
     getOrientationAxis,
     computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling,
     computeBeamEndPair

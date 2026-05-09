@@ -183,6 +183,11 @@ const CalcLiftBeam = (() => {
         { x: C.round4(endB.x), y: C.round4(endB.y), z: C.round4(endB.z), label: 'Beam End B' },
         { x: C.round4(pickupX), y: C.round4(pickupY), z: C.round4(beamZ), label: 'Pickup' }
       ],
+      slackLegAnalysis: {
+        applicable: false,
+        toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
+        reason: 'Tolerance check requires geometric perturbation analysis for paired sling configurations (not yet implemented).'
+      },
       warnings: {
         cogOutsidePolygon: !cogInsidePolygon,
         negativeTension: hasNegativeTension,
