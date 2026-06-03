@@ -72,5 +72,16 @@ check('E LP back -y', near(E.liftingPoints[2].y, -2) && near(E.liftingPoints[3].
   `${E.liftingPoints[2].y}, ${E.liftingPoints[3].y}`);
 check('E COG centred in depth', near(E.cog.x, 2) && near(E.cog.y, 0) && near(E.cog.z, 1), JSON.stringify(E.cog));
 
+// --- Test F: spreader beam — symmetric, top slings clear the beam half-span ---
+const F = { ...A, config: 'spreader-beam', beamLength: 2, topSlingLength: 2 };
+const rF = CalcSimple.computeSimpleSpreader(F);
+// top half-span = 1.0, topSling = 2.0 → hook above beam = sqrt(4-1)=1.732
+check('F hook.z = loadH+headroom', near(rF.hook.z, 5), `hook.z=${rF.hook.z}`);
+check('F beamZ', near(rF.beam.z, 5 - 1.732, 0.01), `beamZ=${rF.beam.z}`);
+check('F beam ends span', near(rF.beam.endB.x - rF.beam.endA.x, 2), `span=${rF.beam.endB.x - rF.beam.endA.x}`);
+check('F has 2 top + 2 bottom slings', rF.topSlings.length === 2 && rF.bottomSlings.length === 2,
+  `${rF.topSlings.length}/${rF.bottomSlings.length}`);
+check('F top sling length', near(rF.topSlings[0].length, 2, 0.001), `Lt=${rF.topSlings[0].length}`);
+
 console.log(`\nSimple-mode tests: ${pass}/${total} passed`);
 if (failures.length) { failures.forEach(f => console.log('  FAIL ' + f)); process.exit(1); }

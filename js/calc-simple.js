@@ -62,6 +62,52 @@ const CalcSimple = (() => {
     };
   }
 
-  return { computeSimpleDirect, buildAdvancedModel, toPoints, ANGLE_FLOOR_DEG, ANGLE_AMBER_DEG };
+  function computeSimpleSpreader(s) {
+    const { cog, lp1, lp2, hook } = toPoints(s);
+    const half = s.beamLength / 2;
+    const topRise = Math.sqrt(Math.max(s.topSlingLength * s.topSlingLength - half * half, 0));
+    const beamZ = hook.z - topRise;
+    const endA = { x: cog.x - half, y: 0, z: beamZ, label: 'BeamA' };
+    const endB = { x: cog.x + half, y: 0, z: beamZ, label: 'BeamB' };
+
+    const topA = CalcCore.buildSling(1, { ...endA }, { ...hook, label: 'Hook' });
+    const topB = CalcCore.buildSling(2, { ...endB }, { ...hook, label: 'Hook' });
+    const botA = CalcCore.buildSling(3, { ...lp1, label: 'LP1' }, { ...endA });
+    const botB = CalcCore.buildSling(4, { ...lp2, label: 'LP2' }, { ...endB });
+
+    // COG load split → vertical load per LP, then convert to bottom-sling tension.
+    const arm1 = Math.abs(lp1.x - cog.x), arm2 = Math.abs(lp2.x - cog.x);
+    const totalArm = arm1 + arm2 || 1;
+    const v1 = s.weight * arm2 / totalArm, v2 = s.weight * arm1 / totalArm;
+    const botSin1 = botA.verticalDist / (botA.length || 1);
+    const botSin2 = botB.verticalDist / (botB.length || 1);
+    botA.tension = CalcCore.round2(v1 / (botSin1 || 1));
+    botB.tension = CalcCore.round2(v2 / (botSin2 || 1));
+    // Top slings: each carries its beam-end vertical load (= the bottom-leg vertical load it supports).
+    const topSin = topA.verticalDist / (topA.length || 1);
+    topA.tension = CalcCore.round2(v1 / (topSin || 1));
+    topB.tension = CalcCore.round2(v2 / (topSin || 1));
+
+    const minAngle = Math.min(topA.angleDegFromHoriz, topB.angleDegFromHoriz,
+                              botA.angleDegFromHoriz, botB.angleDegFromHoriz);
+    return {
+      config: 'spreader-beam',
+      hook, cog, lp1, lp2,
+      beam: { endA, endB, z: beamZ },
+      topSlings: [topA, topB],
+      bottomSlings: [botA, botB],
+      slings: [topA, topB, botA, botB],
+      minAngle: CalcCore.round2(minAngle),
+      warnings: {
+        cogOutsideSpan: cog.x < Math.min(lp1.x, lp2.x) - 1e-6 || cog.x > Math.max(lp1.x, lp2.x) + 1e-6,
+        angleBelowFloor: minAngle < ANGLE_FLOOR_DEG,
+        angleAmber: minAngle >= ANGLE_FLOOR_DEG && minAngle < ANGLE_AMBER_DEG,
+        topSlingTooShort: s.topSlingLength <= half,
+        degenerate: Math.abs(lp2.x - lp1.x) < 1e-6 || s.headroom <= 0 || s.weight <= 0
+      }
+    };
+  }
+
+  return { computeSimpleDirect, computeSimpleSpreader, buildAdvancedModel, toPoints, ANGLE_FLOOR_DEG, ANGLE_AMBER_DEG };
 })();
 if (typeof window !== 'undefined') window.CalcSimple = CalcSimple;
