@@ -41,5 +41,25 @@ check('A leg1 tension', near(rA.slings[0].tension, 5.59, 0.02), `T1=${rA.slings[
 check('A no cogOutsideSpan', rA.warnings.cogOutsideSpan === false, `${rA.warnings.cogOutsideSpan}`);
 check('A no angleBelowFloor', rA.warnings.angleBelowFloor === false, `${rA.warnings.angleBelowFloor}`);
 
+// --- Test B: asymmetric COG (closer to LP2 → LP2 carries more) ---
+const B = { ...A, cogLeft: 2.5 };
+const rB = CalcSimple.computeSimpleDirect(B);
+check('B leg2 tension > leg1', rB.slings[1].tension > rB.slings[0].tension,
+  `${rB.slings[0].tension} vs ${rB.slings[1].tension}`);
+check('B leg1 tension', near(rB.slings[0].tension, 4.01, 0.03), `T1=${rB.slings[0].tension}`);
+check('B leg2 tension', near(rB.slings[1].tension, 7.03, 0.03), `T2=${rB.slings[1].tension}`);
+check('B leg1 angle', near(rB.slings[0].angleDegFromHoriz, 56.31, 0.05), `ang1=${rB.slings[0].angleDegFromHoriz}`);
+check('B leg2 angle', near(rB.slings[1].angleDegFromHoriz, 71.57, 0.05), `ang2=${rB.slings[1].angleDegFromHoriz}`);
+
+// --- Test C: COG outside the pick-point span ---
+const C = { ...A, cogLeft: 4.0 };
+const rC = CalcSimple.computeSimpleDirect(C);
+check('C cogOutsideSpan true', rC.warnings.cogOutsideSpan === true, `${rC.warnings.cogOutsideSpan}`);
+
+// --- Test D: angle below 30° floor (tiny headroom) ---
+const D = { ...A, headroom: 0.2 };
+const rD = CalcSimple.computeSimpleDirect(D);
+check('D angleBelowFloor true', rD.warnings.angleBelowFloor === true, `minAngle=${rD.minAngle}`);
+
 console.log(`\nSimple-mode tests: ${pass}/${total} passed`);
 if (failures.length) { failures.forEach(f => console.log('  FAIL ' + f)); process.exit(1); }
