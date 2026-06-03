@@ -42,6 +42,26 @@ const CalcSimple = (() => {
     };
   }
 
-  return { computeSimpleDirect, toPoints, ANGLE_FLOOR_DEG, ANGLE_AMBER_DEG };
+  /**
+   * Map Simple-mode state to a symmetric 4-lift-point 3D model.
+   * Elevation = side view; each LP is mirrored ± depthOffset along Y. COG centred (y=0).
+   */
+  function buildAdvancedModel(s, depthOffset) {
+    const d = Math.abs(depthOffset) || 0;
+    const lp1x = s.lp1Left, lp2x = s.lp1Left + s.lp2FromLp1;
+    return {
+      config: 'direct',
+      liftingPoints: [
+        { x: lp1x, y: d,  z: s.lp1Bottom },
+        { x: lp2x, y: d,  z: s.lp2Bottom },
+        { x: lp1x, y: -d, z: s.lp1Bottom },
+        { x: lp2x, y: -d, z: s.lp2Bottom }
+      ],
+      cog: { x: s.cogLeft, y: 0, z: s.cogBottom },
+      totalLoad: s.weight
+    };
+  }
+
+  return { computeSimpleDirect, buildAdvancedModel, toPoints, ANGLE_FLOOR_DEG, ANGLE_AMBER_DEG };
 })();
 if (typeof window !== 'undefined') window.CalcSimple = CalcSimple;

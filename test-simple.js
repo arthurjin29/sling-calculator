@@ -61,5 +61,16 @@ const D = { ...A, headroom: 0.2 };
 const rD = CalcSimple.computeSimpleDirect(D);
 check('D angleBelowFloor true', rD.warnings.angleBelowFloor === true, `minAngle=${rD.minAngle}`);
 
+// --- Test E: handoff mirrors 2 LPs → symmetric 4-LP model across depth ---
+const E = CalcSimple.buildAdvancedModel(A, 2);
+check('E 4 lifting points', E.liftingPoints.length === 4, `n=${E.liftingPoints.length}`);
+check('E LP front+x', near(E.liftingPoints[0].x, 0.5) && near(E.liftingPoints[0].y, 2) && near(E.liftingPoints[0].z, 2),
+  JSON.stringify(E.liftingPoints[0]));
+check('E LP2 front', near(E.liftingPoints[1].x, 3.5) && near(E.liftingPoints[1].y, 2) && near(E.liftingPoints[1].z, 2),
+  JSON.stringify(E.liftingPoints[1]));
+check('E LP back -y', near(E.liftingPoints[2].y, -2) && near(E.liftingPoints[3].y, -2),
+  `${E.liftingPoints[2].y}, ${E.liftingPoints[3].y}`);
+check('E COG centred in depth', near(E.cog.x, 2) && near(E.cog.y, 0) && near(E.cog.z, 1), JSON.stringify(E.cog));
+
 console.log(`\nSimple-mode tests: ${pass}/${total} passed`);
 if (failures.length) { failures.forEach(f => console.log('  FAIL ' + f)); process.exit(1); }
