@@ -17,13 +17,16 @@ const CalcLiftBeam = (() => {
     const { beamLength, orientation } = config;
     const minAngleRad = C.degToRad(minAngleDeg);
 
-    // 1. Beam centre = centroid of all 4 LPs
+    // 1. Beam axis
+    const axis = C.getOrientationAxis(liftingPoints, orientation);
+
+    // 2. Beam centre — centred over the LP centroid ALONG its own axis, but
+    //    shifted perpendicular so the beam axis passes over the COG. This keeps
+    //    the pickup (hook) directly above the COG for any in-plan COG offset.
     const cx = liftingPoints.reduce((s, p) => s + p.x, 0) / 4;
     const cy = liftingPoints.reduce((s, p) => s + p.y, 0) / 4;
-    const beamCentre = { x: cx, y: cy, z: 0 };
-
-    // 2. Beam axis
-    const axis = C.getOrientationAxis(liftingPoints, orientation);
+    const sAlong = (cx - cog.x) * axis.x + (cy - cog.y) * axis.y;
+    const beamCentre = { x: cog.x + sAlong * axis.x, y: cog.y + sAlong * axis.y, z: 0 };
 
     // 3. Beam ends
     let { endA, endB } = C.computeBeamEnds(beamCentre, beamLength, axis);

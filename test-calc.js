@@ -816,6 +816,35 @@ runLSFIntegrationTest('integ-stinger-pct12_5', stingerCalc,
   { topSlingLength: 1 }, 'stinger', 2.00);
 
 
+// === HOOK-OVER-COG (beam translates to sit over an offset COG) ===
+// Bug: with a widthwise beam and the COG offset lengthwise (perpendicular to the
+// beam axis), the hook/pickup must stay directly above the COG in plan view.
+// rectLPs(10,4): X is the long axis, so 'widthwise' beam runs along Y; a lengthwise
+// COG offset is along X — the component a beam-axis projection used to discard.
+function runHookOverCogTest(name, calcFn, shared, config) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = calcFn(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+
+  const { cog } = shared;
+  if (Math.abs(r.hook.x - cog.x) > 0.01) errs.push(`hook.x ${r.hook.x} != cog.x ${cog.x}`);
+  if (Math.abs(r.hook.y - cog.y) > 0.01) errs.push(`hook.y ${r.hook.y} != cog.y ${cog.y}`);
+
+  if (errs.length > 0) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+
+runHookOverCogTest('liftbeam-hook-over-cog-perp', liftbeamCalc,
+  { liftingPoints: rectLPs(10, 4), cog: { x: 2, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLength: 3, orientation: 'widthwise' });
+
+runHookOverCogTest('spreader-hook-over-cog-perp', spreaderCalc,
+  { liftingPoints: rectLPs(10, 4), cog: { x: 2, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLength: 3, orientation: 'widthwise' });
+
+
 // ── Report ──
 console.log('\n' + '='.repeat(60));
 console.log(`RESULTS: ${passCount} passed, ${failures.length} failed, ${totalTests} total`);
