@@ -14,6 +14,8 @@ function loadFile(name) {
 loadFile('calc-core.js');
 loadFile('calc-simple.js');
 const CalcSimple = vm.runInContext('CalcSimple', ctx);
+loadFile('sketch2d.js');
+const Sketch2D = vm.runInContext('Sketch2D', ctx);
 
 let total = 0, pass = 0;
 const failures = [];
@@ -82,6 +84,17 @@ check('F beam ends span', near(rF.beam.endB.x - rF.beam.endA.x, 2), `span=${rF.b
 check('F has 2 top + 2 bottom slings', rF.topSlings.length === 2 && rF.bottomSlings.length === 2,
   `${rF.topSlings.length}/${rF.bottomSlings.length}`);
 check('F top sling length', near(rF.topSlings[0].length, 2, 0.001), `Lt=${rF.topSlings[0].length}`);
+
+// --- Test G: layout maps world X-Z (Z-up) to SVG pixels (Y-down) with margin ---
+const lay = Sketch2D.layoutElevation(
+  { minX: 0, maxX: 4, minZ: 0, maxZ: 5 },
+  { width: 400, height: 300, margin: 20 }
+);
+const p = lay.toScreen(0, 0);     // world bottom-left
+check('G bottom-left x at margin', near(p.x, 20, 0.5), `x=${p.x}`);
+check('G bottom-left y near bottom', p.y > 250, `y=${p.y}`);
+const top = lay.toScreen(0, 5);   // world top → smaller screen y
+check('G higher Z → smaller screen y', top.y < p.y, `${top.y} < ${p.y}`);
 
 console.log(`\nSimple-mode tests: ${pass}/${total} passed`);
 if (failures.length) { failures.forEach(f => console.log('  FAIL ' + f)); process.exit(1); }
