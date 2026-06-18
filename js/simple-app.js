@@ -74,6 +74,14 @@ document.addEventListener('DOMContentLoaded', () => {
   ids.forEach(id => $(id).addEventListener('input', recompute));
   recompute();
 
-  // expose for the (future) 3D handoff
+  // --- Handoff: mirror the 2-pick estimate into the symmetric 4-LP Advanced model ---
+  const continueBtn = document.getElementById('sm-continue-3d');
+  if (continueBtn) continueBtn.addEventListener('click', () => {
+    if (!window.SlingApp || !window.SlingApp.applyAdvancedModel) return;
+    const depth = +document.getElementById('sm-depth').value || 2;
+    const model = CalcSimple.buildAdvancedModel(readState(), depth);
+    window.SlingApp.applyAdvancedModel(model);
+  });
+
   window.SimpleApp = { readState, recompute };
 });
