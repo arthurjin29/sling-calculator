@@ -1,7 +1,7 @@
 # Simple Mode — 2D Elevation Front-End for the Sling Calculator
 
 **Date:** 2026-06-03
-**Status:** Design approved, pending spec review
+**Status:** Implemented (Tasks 1–10, merged to master 2026-06-18)
 **Project:** `sling-length-calculator`
 
 ## Problem

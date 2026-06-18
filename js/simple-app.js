@@ -11,18 +11,24 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!sketchHost || typeof CalcSimple === 'undefined' || typeof Sketch2D === 'undefined') return;
 
   function readState() {
+    const cfgEl = document.getElementById('sm-config');
     return {
-      config: 'direct',
+      config: cfgEl ? cfgEl.value : 'direct',
       weight: +$('weight').value, loadW: +$('loadw').value, loadH: +$('loadh').value,
       cogLeft: +$('cogleft').value, cogBottom: +$('cogbottom').value,
       lp1Left: +$('lp1left').value, lp1Bottom: +$('lp1bottom').value,
       lp2FromLp1: +$('lp2from').value, lp2Bottom: +$('lp2bottom').value,
-      headroom: +$('headroom').value
+      headroom: +$('headroom').value,
+      beamLength: +$('beamlen').value, topSlingLength: +$('toplen').value
     };
   }
 
   function recompute() {
-    const r = CalcSimple.computeSimpleDirect(readState());
+    const s = readState();
+    const spreader = s.config === 'spreader-beam';
+    const spreaderInputs = document.getElementById('sm-spreader-inputs');
+    if (spreaderInputs) spreaderInputs.style.display = spreader ? '' : 'none';
+    const r = spreader ? CalcSimple.computeSimpleSpreader(s) : CalcSimple.computeSimpleDirect(s);
     Sketch2D.update(r);
     renderResults(r);
     return r;
@@ -46,7 +52,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderResults(r) {
     const legs = r.slings;
-    const labels = ['LP1', 'LP2', 'LP3', 'LP4'];
+    const labels = r.config === 'spreader-beam'
+      ? ['Top A', 'Top B', 'Bottom LP1', 'Bottom LP2']
+      : ['LP1', 'LP2', 'LP3', 'LP4'];
     const maxLen = Math.max(...legs.map(s => s.length));
     const maxT = Math.max(...legs.map(s => s.tension));
     const cls = r.warnings.angleBelowFloor ? 'sm-bad' : r.warnings.angleAmber ? 'sm-amber' : 'sm-ok';
@@ -55,9 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
       : r.warnings.angleBelowFloor
         ? `⚠ Sling angle ${r.minAngle}° is below the 30° minimum — increase headroom or bring the pick points in.`
         : `Use slings ≈ ${maxLen.toFixed(1)} m · choose ≥ ${maxT.toFixed(1)} t WLL at this angle (min ${r.minAngle}°)`;
-    const warn = r.warnings.cogOutsideSpan
-      ? '<div class="sm-headline sm-bad">⚠ COG is outside the pick points — the load will swing on lift-off.</div>'
-      : '';
+    const warn =
+      (r.warnings.topSlingTooShort
+        ? '<div class="sm-headline sm-bad">⚠ Top sling is shorter than half the beam — lengthen the top slings.</div>' : '') +
+      (r.warnings.cogOutsideSpan
+        ? '<div class="sm-headline sm-bad">⚠ COG is outside the pick points — the load will swing on lift-off.</div>' : '');
 
     const rows = legs.map((s, i) =>
       `<tr><td>${labels[i] || ('Leg ' + (i + 1))}</td><td>${s.length.toFixed(2)} m</td>` +
@@ -72,6 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   Sketch2D.mount(sketchHost, onSketchChange);
   ids.forEach(id => $(id).addEventListener('input', recompute));
+  const configSel = document.getElementById('sm-config');
+  if (configSel) configSel.addEventListener('change', recompute);
+  ['beamlen', 'toplen'].forEach(id => { const e = $(id); if (e) e.addEventListener('input', recompute); });
   recompute();
 
   // --- Handoff: mirror the 2-pick estimate into the symmetric 4-LP Advanced model ---

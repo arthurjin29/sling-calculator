@@ -36,24 +36,36 @@
       <div class="card">
         <h2>Quick Lift Estimate</h2>
         <p class="simple-intro">Sketch a 2-pick lift in elevation — drag the points or type the numbers for a ballpark sling length, angle and leg load.</p>
+        <div class="simple-config-row">
+          <label>Configuration
+            <select id="sm-config">
+              <option value="direct">4-Leg Direct</option>
+              <option value="spreader-beam">Spreader Beam</option>
+            </select>
+          </label>
+          <div id="sm-spreader-inputs" class="simple-spreader-inputs" style="display:none">
+            <label>Beam length <input type="number" id="sm-beamlen" step="any" value="2"><span class="sm-unit">m</span></label>
+            <label>Top sling length <input type="number" id="sm-toplen" step="any" value="2"><span class="sm-unit">m</span></label>
+          </div>
+        </div>
         <div class="simple-layout">
           <div class="simple-inputs">
-            <label>Weight <input type="number" id="sm-weight" step="any" value="10"><span class="unit-label">t</span></label>
-            <label>Load width <input type="number" id="sm-loadw" step="any" value="4"><span class="unit-label">m</span></label>
-            <label>Load height <input type="number" id="sm-loadh" step="any" value="2"><span class="unit-label">m</span></label>
-            <label>COG from left <input type="number" id="sm-cogleft" step="any" value="2"><span class="unit-label">m</span></label>
-            <label>COG from base <input type="number" id="sm-cogbottom" step="any" value="1"><span class="unit-label">m</span></label>
-            <label>LP1 from left <input type="number" id="sm-lp1left" step="any" value="0.5"><span class="unit-label">m</span></label>
-            <label>LP1 height <input type="number" id="sm-lp1bottom" step="any" value="2"><span class="unit-label">m</span></label>
-            <label>LP2 from LP1 <input type="number" id="sm-lp2from" step="any" value="3"><span class="unit-label">m</span></label>
-            <label>LP2 height <input type="number" id="sm-lp2bottom" step="any" value="2"><span class="unit-label">m</span></label>
-            <label>Headroom <input type="number" id="sm-headroom" step="any" value="3"><span class="unit-label">m</span></label>
+            <label>Weight <input type="number" id="sm-weight" step="any" value="10"><span class="sm-unit">t</span></label>
+            <label>Load width <input type="number" id="sm-loadw" step="any" value="4"><span class="sm-unit">m</span></label>
+            <label>Load height <input type="number" id="sm-loadh" step="any" value="2"><span class="sm-unit">m</span></label>
+            <label>COG from left <input type="number" id="sm-cogleft" step="any" value="2"><span class="sm-unit">m</span></label>
+            <label>COG from base <input type="number" id="sm-cogbottom" step="any" value="1"><span class="sm-unit">m</span></label>
+            <label>LP1 from left <input type="number" id="sm-lp1left" step="any" value="0.5"><span class="sm-unit">m</span></label>
+            <label>LP1 height <input type="number" id="sm-lp1bottom" step="any" value="2"><span class="sm-unit">m</span></label>
+            <label>LP2 from LP1 <input type="number" id="sm-lp2from" step="any" value="3"><span class="sm-unit">m</span></label>
+            <label>LP2 height <input type="number" id="sm-lp2bottom" step="any" value="2"><span class="sm-unit">m</span></label>
+            <label>Headroom <input type="number" id="sm-headroom" step="any" value="3"><span class="sm-unit">m</span></label>
           </div>
           <div id="sm-sketch" class="simple-sketch"></div>
         </div>
         <div id="sm-results" class="simple-results"></div>
         <div class="simple-handoff">
-          <label>Depth (front-to-back) <input type="number" id="sm-depth" step="any" value="2"><span class="unit-label">m</span></label>
+          <label>Depth (front-to-back) <input type="number" id="sm-depth" step="any" value="2"><span class="sm-unit">m</span></label>
           <button type="button" id="sm-continue-3d" class="btn btn-primary">Continue in 3D calculator →</button>
         </div>
       </div>
