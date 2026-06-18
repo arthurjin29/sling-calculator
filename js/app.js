@@ -18,6 +18,26 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastResults = null;
   let lastCog = null;
 
+  // --- Simple / Advanced mode toggle ---
+  const simpleSection = document.getElementById('simple-mode');
+  const toolbarEl = document.querySelector('.toolbar');
+  const modeSimpleBtn = document.getElementById('mode-simple');
+  const modeAdvancedBtn = document.getElementById('mode-advanced');
+  function setMode(mode) {
+    const simple = mode === 'simple';
+    if (simpleSection) simpleSection.style.display = simple ? '' : 'none';
+    if (toolbarEl) toolbarEl.style.display = simple ? 'none' : '';
+    form.style.display = simple ? 'none' : '';
+    resultsSection.style.display = simple ? 'none' : '';
+    if (modeSimpleBtn) modeSimpleBtn.classList.toggle('btn-primary', simple);
+    if (modeAdvancedBtn) modeAdvancedBtn.classList.toggle('btn-primary', !simple);
+  }
+  if (modeSimpleBtn) modeSimpleBtn.addEventListener('click', () => setMode('simple'));
+  if (modeAdvancedBtn) modeAdvancedBtn.addEventListener('click', () => setMode('advanced'));
+  window.SlingApp = window.SlingApp || {};
+  window.SlingApp.setMode = setMode;
+  if (simpleSection) setMode('simple'); // Simple is the default front door when present
+
   // --- Presets ---
   const PRESETS = {
     'rect-sym': {

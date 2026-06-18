@@ -25,6 +25,36 @@
       This calculator is for rigging length estimation only. The load distributions are for reference only — minor discrepancies in rigging length could lead to significant changes in distribution. Always refer to Australian Standards for rigging equipment selection.
     </div>
 
+    <!-- SIMPLE / ADVANCED MODE TOGGLE -->
+    <div class="mode-toggle no-print">
+      <button type="button" id="mode-simple" class="btn btn-small btn-primary">Simple</button>
+      <button type="button" id="mode-advanced" class="btn btn-small btn-secondary">Advanced (3D)</button>
+    </div>
+
+    <!-- SIMPLE MODE -->
+    <section id="simple-mode">
+      <div class="card">
+        <h2>Quick Lift Estimate</h2>
+        <p class="simple-intro">Sketch a 2-pick lift in elevation — drag the points or type the numbers for a ballpark sling length, angle and leg load.</p>
+        <div class="simple-layout">
+          <div class="simple-inputs">
+            <label>Weight <input type="number" id="sm-weight" step="any" value="10"><span class="unit-label">t</span></label>
+            <label>Load width <input type="number" id="sm-loadw" step="any" value="4"><span class="unit-label">m</span></label>
+            <label>Load height <input type="number" id="sm-loadh" step="any" value="2"><span class="unit-label">m</span></label>
+            <label>COG from left <input type="number" id="sm-cogleft" step="any" value="2"><span class="unit-label">m</span></label>
+            <label>COG from base <input type="number" id="sm-cogbottom" step="any" value="1"><span class="unit-label">m</span></label>
+            <label>LP1 from left <input type="number" id="sm-lp1left" step="any" value="0.5"><span class="unit-label">m</span></label>
+            <label>LP1 height <input type="number" id="sm-lp1bottom" step="any" value="2"><span class="unit-label">m</span></label>
+            <label>LP2 from LP1 <input type="number" id="sm-lp2from" step="any" value="3"><span class="unit-label">m</span></label>
+            <label>LP2 height <input type="number" id="sm-lp2bottom" step="any" value="2"><span class="unit-label">m</span></label>
+            <label>Headroom <input type="number" id="sm-headroom" step="any" value="3"><span class="unit-label">m</span></label>
+          </div>
+          <div id="sm-sketch" class="simple-sketch"></div>
+        </div>
+        <div id="sm-results" class="simple-results"></div>
+      </div>
+    </section>
+
     <!-- TOOLBAR -->
     <div class="toolbar no-print">
       <div class="toolbar-group">
@@ -540,7 +570,10 @@
   <script src="js/diagram.js"></script>
   <script src="js/overlay.js"></script>
   <script src="js/cadimport.js"></script>
+  <script src="js/calc-simple.js"></script>
+  <script src="js/sketch2d.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/simple-app.js"></script>
   <script type="module">
     import { init, update, refreshStlMesh } from './js/scene.js';
     window.SlingScene = { init, update, refreshStlMesh };
