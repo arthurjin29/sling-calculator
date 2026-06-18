@@ -533,3 +533,20 @@ tr:hover { background: #eaf2f8; }
   .toolbar { flex-direction: column; align-items: flex-start; }
   .diagram-grid { grid-template-columns: 1fr; }
 }
+
+/* Simple mode — 2D elevation sketch (light theme) */
+.sketch-svg {
+  width: 100%;
+  max-width: 520px;
+  background: #fbfcfe;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  touch-action: none;
+}
+.sk-ground { stroke: var(--border); stroke-width: 2; }
+.sk-sling { stroke: var(--primary-light); stroke-width: 3; }
+.sk-beam { stroke: #5b6b85; stroke-width: 5; stroke-linecap: round; }
+.sk-plumb { stroke: var(--text-light); stroke-width: 1; stroke-dasharray: 4 4; }
+.sk-handle { fill: var(--accent); stroke: #fff; stroke-width: 1.5; }
+.sk-hook { fill: none; stroke: var(--primary); stroke-width: 3; }
+.sk-label { fill: var(--text); font-size: 11px; text-anchor: middle; pointer-events: none; }

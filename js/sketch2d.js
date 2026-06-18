@@ -24,6 +24,101 @@ const Sketch2D = (() => {
     return { scale, toScreen, toWorld };
   }
 
-  return { layoutElevation };
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) {
+    const n = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+
+  const VIEW = { width: 460, height: 340, margin: 30 };
+  let host, svg, onChange, current;
+
+  /** mount(hostEl, changeCb) — changeCb({key, world}) fires while dragging a handle. */
+  function mount(hostEl, changeCb) {
+    host = hostEl; onChange = changeCb;
+    svg = el('svg', { viewBox: `0 0 ${VIEW.width} ${VIEW.height}`, class: 'sketch-svg' });
+    host.innerHTML = '';
+    host.appendChild(svg);
+  }
+
+  /** update(result) — redraw from a computeSimpleDirect / computeSimpleSpreader result. */
+  function update(result) {
+    if (!svg) return;
+    current = result;
+    const xs = [result.lp1.x, result.lp2.x, result.hook.x, result.cog.x];
+    const zs = [result.lp1.z, result.lp2.z, result.hook.z, result.cog.z, 0];
+    const bounds = { minX: Math.min(...xs) - 0.5, maxX: Math.max(...xs) + 0.5,
+                     minZ: Math.min(...zs), maxZ: Math.max(...zs) + 0.3 };
+    const lay = layoutElevation(bounds, VIEW);
+    svg.innerHTML = '';
+
+    const H = lay.toScreen(result.hook.x, result.hook.z);
+    const P1 = lay.toScreen(result.lp1.x, result.lp1.z);
+    const P2 = lay.toScreen(result.lp2.x, result.lp2.z);
+    const G = lay.toScreen(result.cog.x, result.cog.z);
+
+    // ground line at world z = 0
+    const g0 = lay.toScreen(bounds.minX, 0), g1 = lay.toScreen(bounds.maxX, 0);
+    svg.appendChild(el('line', { x1: g0.x, y1: g0.y, x2: g1.x, y2: g1.y, class: 'sk-ground' }));
+
+    if (result.beam) {
+      // Spreader-beam: beam bar + top slings (hook→ends) + bottom slings (ends→LPs)
+      const A = lay.toScreen(result.beam.endA.x, result.beam.endA.z);
+      const B = lay.toScreen(result.beam.endB.x, result.beam.endB.z);
+      svg.appendChild(el('line', { x1: H.x, y1: H.y, x2: A.x, y2: A.y, class: 'sk-sling' }));
+      svg.appendChild(el('line', { x1: H.x, y1: H.y, x2: B.x, y2: B.y, class: 'sk-sling' }));
+      svg.appendChild(el('line', { x1: A.x, y1: A.y, x2: P1.x, y2: P1.y, class: 'sk-sling' }));
+      svg.appendChild(el('line', { x1: B.x, y1: B.y, x2: P2.x, y2: P2.y, class: 'sk-sling' }));
+      svg.appendChild(el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, class: 'sk-beam' }));
+    } else {
+      // 4-leg direct: slings hook→each LP
+      svg.appendChild(el('line', { x1: H.x, y1: H.y, x2: P1.x, y2: P1.y, class: 'sk-sling' }));
+      svg.appendChild(el('line', { x1: H.x, y1: H.y, x2: P2.x, y2: P2.y, class: 'sk-sling' }));
+    }
+
+    // plumb line hook→COG
+    svg.appendChild(el('line', { x1: H.x, y1: H.y, x2: G.x, y2: G.y, class: 'sk-plumb' }));
+
+    // draggable handles
+    addHandle(P1, 'lp1', 'LP1');
+    addHandle(P2, 'lp2', 'LP2');
+    addHandle(G, 'cog', 'COG');
+
+    // hook marker (not draggable — it follows COG + headroom)
+    svg.appendChild(el('circle', { cx: H.x, cy: H.y, r: 6, class: 'sk-hook' }));
+    const ht = el('text', { x: H.x, y: H.y - 12, class: 'sk-label' });
+    ht.textContent = 'Hook';
+    svg.appendChild(ht);
+
+    function addHandle(pt, key, label) {
+      const c = el('circle', { cx: pt.x, cy: pt.y, r: 8, class: 'sk-handle', 'data-key': key });
+      c.style.cursor = 'grab';
+      c.addEventListener('pointerdown', (e) => startDrag(e, key, lay));
+      svg.appendChild(c);
+      const t = el('text', { x: pt.x, y: pt.y - 12, class: 'sk-label' });
+      t.textContent = label;
+      svg.appendChild(t);
+    }
+  }
+
+  function startDrag(e, key, lay) {
+    e.preventDefault();
+    const move = (ev) => {
+      const rect = svg.getBoundingClientRect();
+      const px = (ev.clientX - rect.left) / rect.width * VIEW.width;
+      const py = (ev.clientY - rect.top) / rect.height * VIEW.height;
+      const w = lay.toWorld(px, py);
+      if (onChange) onChange({ key, world: w });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  return { layoutElevation, mount, update };
 })();
 if (typeof window !== 'undefined') window.Sketch2D = Sketch2D;
