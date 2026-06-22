@@ -96,5 +96,11 @@ check('G bottom-left y near bottom', p.y > 250, `y=${p.y}`);
 const top = lay.toScreen(0, 5);   // world top → smaller screen y
 check('G higher Z → smaller screen y', top.y < p.y, `${top.y} < ${p.y}`);
 
+// --- Test H: result carries the load box dimensions for the renderer ---
+check('H direct load.w/h echo inputs', rA.load && near(rA.load.w, 4) && near(rA.load.h, 2),
+  JSON.stringify(rA.load));
+check('H spreader load.w/h echo inputs', rF.load && near(rF.load.w, 4) && near(rF.load.h, 2),
+  JSON.stringify(rF.load));
+
 console.log(`\nSimple-mode tests: ${pass}/${total} passed`);
 if (failures.length) { failures.forEach(f => console.log('  FAIL ' + f)); process.exit(1); }

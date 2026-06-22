@@ -10,6 +10,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const resultsEl = document.getElementById('sm-results');
   if (!sketchHost || typeof CalcSimple === 'undefined' || typeof Sketch2D === 'undefined') return;
 
+  // LP1/LP2/COG ride the load-box corners/centre until the user drags or types them.
+  const touched = { lp1: false, lp2: false, cog: false };
+  function reseed() {
+    const w = +$('loadw').value, h = +$('loadh').value;
+    if (!touched.lp1) { $('lp1left').value = 0; $('lp1bottom').value = round1(h); }
+    if (!touched.lp2) { $('lp2from').value = round1(w - (+$('lp1left').value)); $('lp2bottom').value = round1(h); }
+    if (!touched.cog) { $('cogleft').value = round1(w / 2); $('cogbottom').value = round1(h / 2); }
+  }
+
   function readState() {
     const cfgEl = document.getElementById('sm-config');
     return {
@@ -37,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const round1 = (v) => Math.round(v * 10) / 10;
 
   function onSketchChange({ key, world }) {
+    touched[key] = true;
     if (key === 'cog') {
       $('cogleft').value = round1(world.x);
       $('cogbottom').value = round1(Math.max(world.z, 0));
@@ -81,7 +91,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   Sketch2D.mount(sketchHost, onSketchChange);
-  ids.forEach(id => $(id).addEventListener('input', recompute));
+  // Load width/height re-seed the untouched points; LP/COG field edits mark that point touched.
+  ['loadw', 'loadh'].forEach(id => $(id).addEventListener('input', () => { reseed(); recompute(); }));
+  const markThenRecompute = (key, idList) => idList.forEach(id =>
+    $(id).addEventListener('input', () => { touched[key] = true; recompute(); }));
+  markThenRecompute('lp1', ['lp1left', 'lp1bottom']);
+  markThenRecompute('lp2', ['lp2from', 'lp2bottom']);
+  markThenRecompute('cog', ['cogleft', 'cogbottom']);
+  ['weight', 'headroom'].forEach(id => $(id).addEventListener('input', recompute));
   const configSel = document.getElementById('sm-config');
   if (configSel) configSel.addEventListener('change', recompute);
   ['beamlen', 'toplen'].forEach(id => { const e = $(id); if (e) e.addEventListener('input', recompute); });

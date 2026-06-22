@@ -544,6 +544,7 @@ tr:hover { background: #eaf2f8; }
   touch-action: none;
 }
 .sk-ground { stroke: var(--border); stroke-width: 2; }
+.sk-load { fill: rgba(26, 82, 118, 0.07); stroke: var(--primary-light); stroke-width: 1.5; stroke-dasharray: 5 3; }
 .sk-sling { stroke: var(--primary-light); stroke-width: 3; }
 .sk-beam { stroke: #5b6b85; stroke-width: 5; stroke-linecap: round; }
 .sk-plumb { stroke: var(--text-light); stroke-width: 1; stroke-dasharray: 4 4; }

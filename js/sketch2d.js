@@ -46,12 +46,20 @@ const Sketch2D = (() => {
   function update(result) {
     if (!svg) return;
     current = result;
-    const xs = [result.lp1.x, result.lp2.x, result.hook.x, result.cog.x];
-    const zs = [result.lp1.z, result.lp2.z, result.hook.z, result.cog.z, 0];
+    const lw = (result.load && result.load.w > 0) ? result.load.w : 0;
+    const lh = (result.load && result.load.h > 0) ? result.load.h : 0;
+    const xs = [result.lp1.x, result.lp2.x, result.hook.x, result.cog.x, 0, lw];
+    const zs = [result.lp1.z, result.lp2.z, result.hook.z, result.cog.z, 0, lh];
     const bounds = { minX: Math.min(...xs) - 0.5, maxX: Math.max(...xs) + 0.5,
                      minZ: Math.min(...zs), maxZ: Math.max(...zs) + 0.3 };
     const lay = layoutElevation(bounds, VIEW);
     svg.innerHTML = '';
+
+    // load box (backmost), world rect [0,lw] x [0,lh]
+    if (lw > 0 && lh > 0) {
+      const tl = lay.toScreen(0, lh), br = lay.toScreen(lw, 0);
+      svg.appendChild(el('rect', { x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y, class: 'sk-load' }));
+    }
 
     const H = lay.toScreen(result.hook.x, result.hook.z);
     const P1 = lay.toScreen(result.lp1.x, result.lp1.z);

@@ -31,6 +31,7 @@ const CalcSimple = (() => {
     return {
       config: 'direct',
       hook, cog, lp1, lp2,
+      load: { w: s.loadW, h: s.loadH },
       slings: [sling1, sling2],
       minAngle: CalcCore.round2(minAngle),
       warnings: {
@@ -93,6 +94,7 @@ const CalcSimple = (() => {
     return {
       config: 'spreader-beam',
       hook, cog, lp1, lp2,
+      load: { w: s.loadW, h: s.loadH },
       beam: { endA, endB, z: beamZ },
       topSlings: [topA, topB],
       bottomSlings: [botA, botB],
