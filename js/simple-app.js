@@ -4,7 +4,7 @@
  */
 document.addEventListener('DOMContentLoaded', () => {
   const ids = ['weight', 'loadw', 'loadh', 'cogleft', 'cogbottom',
-               'lp1left', 'lp1bottom', 'lp2from', 'lp2bottom', 'headroom'];
+               'lp1left', 'lp1bottom', 'lp2left', 'lp2bottom', 'headroom'];
   const $ = (id) => document.getElementById('sm-' + id);
   const sketchHost = document.getElementById('sm-sketch');
   const resultsEl = document.getElementById('sm-results');
@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function reseed() {
     const w = +$('loadw').value, h = +$('loadh').value;
     if (!touched.lp1) { $('lp1left').value = 0; $('lp1bottom').value = round1(h); }
-    if (!touched.lp2) { $('lp2from').value = round1(w - (+$('lp1left').value)); $('lp2bottom').value = round1(h); }
+    if (!touched.lp2) { $('lp2left').value = round1(w); $('lp2bottom').value = round1(h); }
     if (!touched.cog) { $('cogleft').value = round1(w / 2); $('cogbottom').value = round1(h / 2); }
   }
 
@@ -25,8 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const w = +$('loadw').value, h = +$('loadh').value;
     $('lp1left').value = round1(clamp(+$('lp1left').value, 0, w));
     $('lp1bottom').value = round1(clamp(+$('lp1bottom').value, 0, h));
-    const lp1L = +$('lp1left').value;
-    $('lp2from').value = round1(clamp(lp1L + (+$('lp2from').value), 0, w) - lp1L);
+    $('lp2left').value = round1(clamp(+$('lp2left').value, 0, w));
     $('lp2bottom').value = round1(clamp(+$('lp2bottom').value, 0, h));
     $('cogleft').value = round1(clamp(+$('cogleft').value, 0, w));
     $('cogbottom').value = round1(clamp(+$('cogbottom').value, 0, h));
@@ -39,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
       weight: +$('weight').value, loadW: +$('loadw').value, loadH: +$('loadh').value,
       cogLeft: +$('cogleft').value, cogBottom: +$('cogbottom').value,
       lp1Left: +$('lp1left').value, lp1Bottom: +$('lp1bottom').value,
-      lp2FromLp1: +$('lp2from').value, lp2Bottom: +$('lp2bottom').value,
+      lp2FromLp1: (+$('lp2left').value) - (+$('lp1left').value), lp2Bottom: +$('lp2bottom').value,
       headroom: +$('headroom').value,
       beamLength: +$('beamlen').value, topSlingLength: +$('toplen').value
     };
@@ -69,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
       $('lp1left').value = round1(x);
       $('lp1bottom').value = round1(z);
     } else if (key === 'lp2') {
-      $('lp2from').value = round1(x - (+$('lp1left').value));
+      $('lp2left').value = round1(x);
       $('lp2bottom').value = round1(z);
     }
     recompute();
@@ -118,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $(id).addEventListener('change', () => { clampAll(); recompute(); });
   });
   wirePoint('lp1', ['lp1left', 'lp1bottom']);
-  wirePoint('lp2', ['lp2from', 'lp2bottom']);
+  wirePoint('lp2', ['lp2left', 'lp2bottom']);
   wirePoint('cog', ['cogleft', 'cogbottom']);
   ['weight', 'headroom'].forEach(id => $(id).addEventListener('input', recompute));
   const configSel = document.getElementById('sm-config');
