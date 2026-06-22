@@ -19,6 +19,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!touched.cog) { $('cogleft').value = round1(w / 2); $('cogbottom').value = round1(h / 2); }
   }
 
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  // LPs and COG must stay within the load rectangle [0,W] x [0,H].
+  function clampAll() {
+    const w = +$('loadw').value, h = +$('loadh').value;
+    $('lp1left').value = round1(clamp(+$('lp1left').value, 0, w));
+    $('lp1bottom').value = round1(clamp(+$('lp1bottom').value, 0, h));
+    const lp1L = +$('lp1left').value;
+    $('lp2from').value = round1(clamp(lp1L + (+$('lp2from').value), 0, w) - lp1L);
+    $('lp2bottom').value = round1(clamp(+$('lp2bottom').value, 0, h));
+    $('cogleft').value = round1(clamp(+$('cogleft').value, 0, w));
+    $('cogbottom').value = round1(clamp(+$('cogbottom').value, 0, h));
+  }
+
   function readState() {
     const cfgEl = document.getElementById('sm-config');
     return {
@@ -47,15 +60,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function onSketchChange({ key, world }) {
     touched[key] = true;
+    const w = +$('loadw').value, h = +$('loadh').value;
+    const x = clamp(world.x, 0, w), z = clamp(world.z, 0, h);
     if (key === 'cog') {
-      $('cogleft').value = round1(world.x);
-      $('cogbottom').value = round1(Math.max(world.z, 0));
+      $('cogleft').value = round1(x);
+      $('cogbottom').value = round1(z);
     } else if (key === 'lp1') {
-      $('lp1left').value = round1(world.x);
-      $('lp1bottom').value = round1(Math.max(world.z, 0));
+      $('lp1left').value = round1(x);
+      $('lp1bottom').value = round1(z);
     } else if (key === 'lp2') {
-      $('lp2from').value = round1(world.x - (+$('lp1left').value));
-      $('lp2bottom').value = round1(Math.max(world.z, 0));
+      $('lp2from').value = round1(x - (+$('lp1left').value));
+      $('lp2bottom').value = round1(z);
     }
     recompute();
   }
@@ -92,12 +107,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   Sketch2D.mount(sketchHost, onSketchChange);
   // Load width/height re-seed the untouched points; LP/COG field edits mark that point touched.
-  ['loadw', 'loadh'].forEach(id => $(id).addEventListener('input', () => { reseed(); recompute(); }));
-  const markThenRecompute = (key, idList) => idList.forEach(id =>
-    $(id).addEventListener('input', () => { touched[key] = true; recompute(); }));
-  markThenRecompute('lp1', ['lp1left', 'lp1bottom']);
-  markThenRecompute('lp2', ['lp2from', 'lp2bottom']);
-  markThenRecompute('cog', ['cogleft', 'cogbottom']);
+  // Load dims: untouched points follow corners live (input); enforce box bounds once settled (change).
+  ['loadw', 'loadh'].forEach(id => {
+    $(id).addEventListener('input', () => { reseed(); recompute(); });
+    $(id).addEventListener('change', () => { clampAll(); recompute(); });
+  });
+  // LP/COG fields: live preview on input (marks touched); clamp into the box on change.
+  const wirePoint = (key, idList) => idList.forEach(id => {
+    $(id).addEventListener('input', () => { touched[key] = true; recompute(); });
+    $(id).addEventListener('change', () => { clampAll(); recompute(); });
+  });
+  wirePoint('lp1', ['lp1left', 'lp1bottom']);
+  wirePoint('lp2', ['lp2from', 'lp2bottom']);
+  wirePoint('cog', ['cogleft', 'cogbottom']);
   ['weight', 'headroom'].forEach(id => $(id).addEventListener('input', recompute));
   const configSel = document.getElementById('sm-config');
   if (configSel) configSel.addEventListener('change', recompute);
