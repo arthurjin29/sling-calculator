@@ -102,5 +102,18 @@ check('H direct load.w/h echo inputs', rA.load && near(rA.load.w, 4) && near(rA.
 check('H spreader load.w/h echo inputs', rF.load && near(rF.load.w, 4) && near(rF.load.h, 2),
   JSON.stringify(rF.load));
 
+// --- Test I: crossed picks (LP1 right of LP2) → beam ends pair to same-side LP, no crossed slings ---
+// lp1 at x=4 (right), lp2 at x=0 (left); beam ends at cog.x±1 = 1 (A,left) and 3 (B,right)
+const I = { ...A, config: 'spreader-beam', beamLength: 2, topSlingLength: 2, lp1Left: 4, lp2FromLp1: -4 };
+const rI = CalcSimple.computeSimpleSpreader(I);
+check('I left beam end → left pick (x=0)', near(rI.bottomSlings[0].from.x, 0) && near(rI.bottomSlings[0].to.x, 1),
+  `from=${rI.bottomSlings[0].from.x} to=${rI.bottomSlings[0].to.x}`);
+check('I right beam end → right pick (x=4)', near(rI.bottomSlings[1].from.x, 4) && near(rI.bottomSlings[1].to.x, 3),
+  `from=${rI.bottomSlings[1].from.x} to=${rI.bottomSlings[1].to.x}`);
+// no crossing: the two bottom slings occupy disjoint x-ranges around the beam centre
+check('I bottom slings do not cross',
+  Math.max(rI.bottomSlings[0].from.x, rI.bottomSlings[0].to.x) <= Math.min(rI.bottomSlings[1].from.x, rI.bottomSlings[1].to.x),
+  'left-span max must be <= right-span min');
+
 console.log(`\nSimple-mode tests: ${pass}/${total} passed`);
 if (failures.length) { failures.forEach(f => console.log('  FAIL ' + f)); process.exit(1); }

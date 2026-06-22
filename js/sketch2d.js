@@ -74,10 +74,14 @@ const Sketch2D = (() => {
       // Spreader-beam: beam bar + top slings (hook→ends) + bottom slings (ends→LPs)
       const A = lay.toScreen(result.beam.endA.x, result.beam.endA.z);
       const B = lay.toScreen(result.beam.endB.x, result.beam.endB.z);
+      // top slings: hook → each beam end
       svg.appendChild(el('line', { x1: H.x, y1: H.y, x2: A.x, y2: A.y, class: 'sk-sling' }));
       svg.appendChild(el('line', { x1: H.x, y1: H.y, x2: B.x, y2: B.y, class: 'sk-sling' }));
-      svg.appendChild(el('line', { x1: A.x, y1: A.y, x2: P1.x, y2: P1.y, class: 'sk-sling' }));
-      svg.appendChild(el('line', { x1: B.x, y1: B.y, x2: P2.x, y2: P2.y, class: 'sk-sling' }));
+      // bottom slings: drawn from their real endpoints (beam end → same-side pick, never crossed)
+      (result.bottomSlings || []).forEach(sl => {
+        const a = lay.toScreen(sl.to.x, sl.to.z), b = lay.toScreen(sl.from.x, sl.from.z);
+        svg.appendChild(el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'sk-sling' }));
+      });
       svg.appendChild(el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, class: 'sk-beam' }));
     } else {
       // 4-leg direct: slings hook→each LP

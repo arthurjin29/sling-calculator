@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderResults(r) {
     const legs = r.slings;
     const labels = r.config === 'spreader-beam'
-      ? ['Top A', 'Top B', 'Bottom LP1', 'Bottom LP2']
+      ? ['Top L', 'Top R', 'Bottom L', 'Bottom R']
       : ['LP1', 'LP2', 'LP3', 'LP4'];
     const maxLen = Math.max(...legs.map(s => s.length));
     const maxT = Math.max(...legs.map(s => s.tension));

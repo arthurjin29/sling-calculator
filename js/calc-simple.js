@@ -68,26 +68,30 @@ const CalcSimple = (() => {
     const half = s.beamLength / 2;
     const topRise = Math.sqrt(Math.max(s.topSlingLength * s.topSlingLength - half * half, 0));
     const beamZ = hook.z - topRise;
-    const endA = { x: cog.x - half, y: 0, z: beamZ, label: 'BeamA' };
-    const endB = { x: cog.x + half, y: 0, z: beamZ, label: 'BeamB' };
+    const endA = { x: cog.x - half, y: 0, z: beamZ, label: 'BeamA' };  // left beam end
+    const endB = { x: cog.x + half, y: 0, z: beamZ, label: 'BeamB' };  // right beam end
+
+    // Pair each beam end with the pick on its own side so the bottom slings never cross.
+    const leftLP = lp1.x <= lp2.x ? lp1 : lp2;
+    const rightLP = lp1.x <= lp2.x ? lp2 : lp1;
 
     const topA = CalcCore.buildSling(1, { ...endA }, { ...hook, label: 'Hook' });
     const topB = CalcCore.buildSling(2, { ...endB }, { ...hook, label: 'Hook' });
-    const botA = CalcCore.buildSling(3, { ...lp1, label: 'LP1' }, { ...endA });
-    const botB = CalcCore.buildSling(4, { ...lp2, label: 'LP2' }, { ...endB });
+    const botA = CalcCore.buildSling(3, { ...leftLP, label: 'LP-L' }, { ...endA });
+    const botB = CalcCore.buildSling(4, { ...rightLP, label: 'LP-R' }, { ...endB });
 
     // COG load split → vertical load per LP, then convert to bottom-sling tension.
-    const arm1 = Math.abs(lp1.x - cog.x), arm2 = Math.abs(lp2.x - cog.x);
-    const totalArm = arm1 + arm2 || 1;
-    const v1 = s.weight * arm2 / totalArm, v2 = s.weight * arm1 / totalArm;
-    const botSin1 = botA.verticalDist / (botA.length || 1);
-    const botSin2 = botB.verticalDist / (botB.length || 1);
-    botA.tension = CalcCore.round2(v1 / (botSin1 || 1));
-    botB.tension = CalcCore.round2(v2 / (botSin2 || 1));
+    const armL = Math.abs(leftLP.x - cog.x), armR = Math.abs(rightLP.x - cog.x);
+    const totalArm = armL + armR || 1;
+    const vL = s.weight * armR / totalArm, vR = s.weight * armL / totalArm;
+    const botSinL = botA.verticalDist / (botA.length || 1);
+    const botSinR = botB.verticalDist / (botB.length || 1);
+    botA.tension = CalcCore.round2(vL / (botSinL || 1));
+    botB.tension = CalcCore.round2(vR / (botSinR || 1));
     // Top slings: each carries its beam-end vertical load (= the bottom-leg vertical load it supports).
     const topSin = topA.verticalDist / (topA.length || 1);
-    topA.tension = CalcCore.round2(v1 / (topSin || 1));
-    topB.tension = CalcCore.round2(v2 / (topSin || 1));
+    topA.tension = CalcCore.round2(vL / (topSin || 1));
+    topB.tension = CalcCore.round2(vR / (topSin || 1));
 
     const minAngle = Math.min(topA.angleDegFromHoriz, topB.angleDegFromHoriz,
                               botA.angleDegFromHoriz, botB.angleDegFromHoriz);
