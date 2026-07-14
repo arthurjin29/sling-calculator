@@ -564,6 +564,75 @@ runCascadeBeamOverLpsTest('dbl-cas-offset-cog-beam-over-lps',
     pairing: { groupA: [1, 4], groupB: [2, 3] } },
   { x: 0, y: 0 });
 
+// === CASCADE: horizontal equilibrium (pick over sub-COG) ===
+// Net horizontal force at the hook from the two top slings — the source of "lean".
+function hookHorizForce(r) {
+  const hook = r.hook;
+  const top = r.tiers[2].slings; // tiers = [Bottom, Middle, Top]
+  let fx = 0, fy = 0;
+  for (const s of top) {
+    const end = s.from; // beam pick; s.to = hook
+    const dx = end.x - hook.x, dy = end.y - hook.y, dz = end.z - hook.z;
+    const L = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    fx += s.tension * dx / L;
+    fy += s.tension * dy / L;
+  }
+  return Math.sqrt(fx * fx + fy * fy);
+}
+function runCascadeHookBalancedTest(name, shared, config, opts) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const F = hookHorizForce(r);
+  const tol = 0.005 * shared.totalLoad; // 0.5% of load
+  if (F > tol) errs.push(`hook horizontal force ${F.toFixed(4)} > tol ${tol.toFixed(4)}`);
+  if (Math.abs(r.hook.x - shared.cog.x) > 0.01 || Math.abs(r.hook.y - shared.cog.y) > 0.01)
+    errs.push(`hook (${r.hook.x},${r.hook.y}) not over COG`);
+  const top = r.tiers[2].slings;
+  if (opts && opts.topAsym === true && Math.abs(top[0].length - top[1].length) < 0.1)
+    errs.push(`top slings should differ (offset COG): ${top[0].length} vs ${top[1].length}`);
+  if (opts && opts.topAsym === false && Math.abs(top[0].length - top[1].length) > 0.02)
+    errs.push(`top slings should be equal (symmetric): ${top[0].length} vs ${top[1].length}`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+// Perpendicular (Y) offset — the lean case. Top slings equal by x-symmetry.
+runCascadeHookBalancedTest('dbl-cas-perp-cog-hook-balanced',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 1.5, z: 0 }, minAngleDeg: 60, totalLoad: 100 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
+  { topAsym: false });
+// On-axis (X) offset — balanced at hook AND asymmetric top slings.
+runCascadeHookBalancedTest('dbl-cas-onaxis-cog-asym-top',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 2, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
+  { topAsym: true });
+
+// Picks sit over the reaction-weighted sub-COGs; hook plan == COG.
+function runCascadePicksOverSubCogTest(name, shared, config) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const lps = shared.liftingPoints;
+  const R = CalcCore.computeSupportReactions(lps, shared.cog, shared.totalLoad);
+  const gA = config.pairing.groupA.map(v => v - 1), gB = config.pairing.groupB.map(v => v - 1);
+  const sc = (idxs) => { let w = 0, sx = 0, sy = 0; idxs.forEach(i => { w += R[i]; sx += R[i] * lps[i].x; sy += R[i] * lps[i].y; }); return { x: sx / w, y: sy / w }; };
+  const scA = sc(gA), scB = sc(gB);
+  const pA = r.intermediatePoints.find(p => p.label === 'Main Pick A');
+  const pB = r.intermediatePoints.find(p => p.label === 'Main Pick B');
+  if (!pA || !pB) { failures.push({ name, errors: ['Main Pick A/B missing from intermediatePoints'] }); return; }
+  if (Math.abs(pA.x - scA.x) > 1e-3 || Math.abs(pA.y - scA.y) > 1e-3) errs.push(`pickA (${pA.x},${pA.y}) != subCogA (${scA.x.toFixed(3)},${scA.y.toFixed(3)})`);
+  if (Math.abs(pB.x - scB.x) > 1e-3 || Math.abs(pB.y - scB.y) > 1e-3) errs.push(`pickB (${pB.x},${pB.y}) != subCogB (${scB.x.toFixed(3)},${scB.y.toFixed(3)})`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+runCascadePicksOverSubCogTest('dbl-cas-picks-over-subcog',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 1.5, z: 0 }, minAngleDeg: 60, totalLoad: 100 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
+
 // === CASCADE: per-lay angle overrides ===
 function runCascadeLayAngleTest(name, shared, config, tierIdx, targetAngle) {
   totalTests++;

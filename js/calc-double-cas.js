@@ -41,32 +41,34 @@ window.CalcDoubleCas = (() => {
     const groupALabels = groupAIdxs.map(i => 'LP' + (i + 1));
     const groupBLabels = groupBIdxs.map(i => 'LP' + (i + 1));
 
-    // ── 2. Master beam — centered above load midpoint ──
+    // ── 2. Pick points — each beam picked over the COG of the load it carries ──
+    // Per-LP vertical share from a min-norm rigid-body reaction solve. The
+    // reaction-weighted centroid of the LPs equals the COG, so each side's
+    // sub-COG and the total COG nest consistently: the hook (over the COG,
+    // below) lands collinear with the two Main-Beam pick points, so the two
+    // top slings straddle it and their horizontal thrusts cancel — no lean,
+    // for a COG offset in any in-plan direction.
     const hookXY = { x: cog.x, y: cog.y };
-    const lpMidA = C.midpoint(groupALPs[0], groupALPs[1]);
-    const lpMidB = C.midpoint(groupBLPs[0], groupBLPs[1]);
-    // Main beam centred over the load's lifting points (midpoint of the two
-    // LP-group midpoints), NOT the COG — keeps each 2nd-level beam over its LP
-    // pair so the rig hangs plumb. The hook stays over the COG (below), so when
-    // the COG is offset the two top slings come out at different lengths.
-    const masterCenter = C.midpoint(lpMidA, lpMidB);
 
-    const mAxisX = lpMidB.x - lpMidA.x;
-    const mAxisY = lpMidB.y - lpMidA.y;
-    const mAxisLen = Math.sqrt(mAxisX * mAxisX + mAxisY * mAxisY) || 1;
-    const mUx = mAxisX / mAxisLen;
-    const mUy = mAxisY / mAxisLen;
+    const reactions = C.computeSupportReactions(liftingPoints, cog, totalLoad);
+    const subCogOf = (idxs) => {
+      let w = 0, sx = 0, sy = 0;
+      for (const i of idxs) { w += reactions[i]; sx += reactions[i] * liftingPoints[i].x; sy += reactions[i] * liftingPoints[i].y; }
+      return { x: sx / w, y: sy / w };
+    };
+    const subCogA = subCogOf(groupAIdxs);
+    const subCogB = subCogOf(groupBIdxs);
 
-    const halfMaster = masterLength / 2;
-    const masterEndAxy = { x: masterCenter.x - mUx * halfMaster, y: masterCenter.y - mUy * halfMaster };
-    const masterEndBxy = { x: masterCenter.x + mUx * halfMaster, y: masterCenter.y + mUy * halfMaster };
+    // Main-Beam sling pick points sit over each side's sub-COG (plan x,y).
+    const pickAxy = { x: subCogA.x, y: subCogA.y };
+    const pickBxy = { x: subCogB.x, y: subCogB.y };
 
     // Master beam Z: each master end acts as "hook" for its LP pair.
     // Must be high enough for min angle from each LP in its group.
-    const hDistA0 = C.horizontalDist(groupALPs[0], masterEndAxy);
-    const hDistA1 = C.horizontalDist(groupALPs[1], masterEndAxy);
-    const hDistB0 = C.horizontalDist(groupBLPs[0], masterEndBxy);
-    const hDistB1 = C.horizontalDist(groupBLPs[1], masterEndBxy);
+    const hDistA0 = C.horizontalDist(groupALPs[0], pickAxy);
+    const hDistA1 = C.horizontalDist(groupALPs[1], pickAxy);
+    const hDistB0 = C.horizontalDist(groupBLPs[0], pickBxy);
+    const hDistB1 = C.horizontalDist(groupBLPs[1], pickBxy);
 
     const masterEndAz = Math.max(
       groupALPs[0].z + hDistA0 * Math.tan(minAngleRad),
@@ -83,8 +85,8 @@ window.CalcDoubleCas = (() => {
     // Slave end positions depend on masterZ, and middle sling angles depend on both.
     let slaveA1, slaveA2, slaveB1, slaveB2;
     for (let iter = 0; iter < 20; iter++) {
-      const mEndA = { ...masterEndAxy, z: masterZ };
-      const mEndB = { ...masterEndBxy, z: masterZ };
+      const mEndA = { ...pickAxy, z: masterZ };
+      const mEndB = { ...pickBxy, z: masterZ };
 
       const pairA = C.computeBeamEndPair(groupALPs[0], groupALPs[1], mEndA, slaveLengthA, minSlingLen);
       const pairB = C.computeBeamEndPair(groupBLPs[0], groupBLPs[1], mEndB, slaveLengthB, minSlingLen);
@@ -109,9 +111,9 @@ window.CalcDoubleCas = (() => {
       masterZ = newMasterZ;
     }
 
-    const masterEnds = {
-      endA: { ...masterEndAxy, z: masterZ },
-      endB: { ...masterEndBxy, z: masterZ }
+    const masterPicks = {
+      pickA: { ...pickAxy, z: masterZ },
+      pickB: { ...pickBxy, z: masterZ }
     };
 
     // Actual slave beam lengths
@@ -119,8 +121,8 @@ window.CalcDoubleCas = (() => {
     const actualSlaveLenB = C.round4(C.dist3D(slaveB1, slaveB2));
 
     // ── 4. Hook — above master beam at top-lay angle (default min angle) ──
-    const hDistHA = C.horizontalDist(masterEnds.endA, hookXY);
-    const hDistHB = C.horizontalDist(masterEnds.endB, hookXY);
+    const hDistHA = C.horizontalDist(masterPicks.pickA, hookXY);
+    const hDistHB = C.horizontalDist(masterPicks.pickB, hookXY);
     const hook = {
       x: cog.x,
       y: cog.y,
@@ -154,48 +156,48 @@ window.CalcDoubleCas = (() => {
     const middleSlings = [];
     middleSlings.push(C.buildSling(slingId++,
       { ...slaveA1, label: '2nd A End 1' },
-      { ...masterEnds.endA, label: 'Main End A' }
+      { ...masterPicks.pickA, label: 'Main Pick A' }
     ));
     middleSlings.push(C.buildSling(slingId++,
       { ...slaveA2, label: '2nd A End 2' },
-      { ...masterEnds.endA, label: 'Main End A' }
+      { ...masterPicks.pickA, label: 'Main Pick A' }
     ));
     middleSlings.push(C.buildSling(slingId++,
       { ...slaveB1, label: '2nd B End 1' },
-      { ...masterEnds.endB, label: 'Main End B' }
+      { ...masterPicks.pickB, label: 'Main Pick B' }
     ));
     middleSlings.push(C.buildSling(slingId++,
       { ...slaveB2, label: '2nd B End 2' },
-      { ...masterEnds.endB, label: 'Main End B' }
+      { ...masterPicks.pickB, label: 'Main Pick B' }
     ));
 
     // ── 8. Top slings (2): master beam ends → hook ──
     const topSlings = [];
     const topSlingA = C.buildSling(slingId++,
-      { ...masterEnds.endA, label: 'Main End A' },
+      { ...masterPicks.pickA, label: 'Main Pick A' },
       { ...hook, label: 'Hook' }
     );
     topSlings.push(topSlingA);
     const topSlingB = C.buildSling(slingId++,
-      { ...masterEnds.endB, label: 'Main End B' },
+      { ...masterPicks.pickB, label: 'Main Pick B' },
       { ...hook, label: 'Hook' }
     );
     topSlings.push(topSlingB);
 
     // ── 9. Tensions — cascade downward ──
-    const [topTensionA, topTensionB] = C.calcTwoSlingTension(masterEnds.endA, masterEnds.endB, hook, totalLoad);
+    const [topTensionA, topTensionB] = C.calcTwoSlingTension(masterPicks.pickA, masterPicks.pickB, hook, totalLoad);
     topSlingA.tension = C.round4(topTensionA);
     topSlingB.tension = C.round4(topTensionB);
 
-    const vLoadMasterA = C.computeVerticalLoad(topTensionA, masterEnds.endA, hook);
-    const vLoadMasterB = C.computeVerticalLoad(topTensionB, masterEnds.endB, hook);
+    const vLoadMasterA = C.computeVerticalLoad(topTensionA, masterPicks.pickA, hook);
+    const vLoadMasterB = C.computeVerticalLoad(topTensionB, masterPicks.pickB, hook);
 
     // Middle tier: 2 slings per master end sharing that side's vertical load
-    const midTensionsA = C.calcTwoSlingTension(slaveA1, slaveA2, masterEnds.endA, vLoadMasterA);
+    const midTensionsA = C.calcTwoSlingTension(slaveA1, slaveA2, masterPicks.pickA, vLoadMasterA);
     middleSlings[0].tension = C.round4(midTensionsA[0]);
     middleSlings[1].tension = C.round4(midTensionsA[1]);
 
-    const midTensionsB = C.calcTwoSlingTension(slaveB1, slaveB2, masterEnds.endB, vLoadMasterB);
+    const midTensionsB = C.calcTwoSlingTension(slaveB1, slaveB2, masterPicks.pickB, vLoadMasterB);
     middleSlings[2].tension = C.round4(midTensionsB[0]);
     middleSlings[3].tension = C.round4(midTensionsB[1]);
 
@@ -270,9 +272,9 @@ window.CalcDoubleCas = (() => {
       beams: [
         {
           name: 'Main Beam',
-          endA: { x: C.round4(masterEnds.endA.x), y: C.round4(masterEnds.endA.y), z: C.round4(masterEnds.endA.z) },
-          endB: { x: C.round4(masterEnds.endB.x), y: C.round4(masterEnds.endB.y), z: C.round4(masterEnds.endB.z) },
-          length: C.round4(masterLength), pickupPoint: null
+          endA: { x: C.round4(masterPicks.pickA.x), y: C.round4(masterPicks.pickA.y), z: C.round4(masterPicks.pickA.z) },
+          endB: { x: C.round4(masterPicks.pickB.x), y: C.round4(masterPicks.pickB.y), z: C.round4(masterPicks.pickB.z) },
+          length: C.round4(C.horizontalDist(masterPicks.pickA, masterPicks.pickB)), pickupPoint: null
         },
         {
           name: '2nd Lvl Beam A',
@@ -290,8 +292,8 @@ window.CalcDoubleCas = (() => {
       intermediatePoints: [
         { ...slaveA1, label: '2nd A End 1' }, { ...slaveA2, label: '2nd A End 2' },
         { ...slaveB1, label: '2nd B End 1' }, { ...slaveB2, label: '2nd B End 2' },
-        { x: C.round4(masterEnds.endA.x), y: C.round4(masterEnds.endA.y), z: C.round4(masterEnds.endA.z), label: 'Main End A' },
-        { x: C.round4(masterEnds.endB.x), y: C.round4(masterEnds.endB.y), z: C.round4(masterEnds.endB.z), label: 'Main End B' }
+        { x: C.round4(masterPicks.pickA.x), y: C.round4(masterPicks.pickA.y), z: C.round4(masterPicks.pickA.z), label: 'Main Pick A' },
+        { x: C.round4(masterPicks.pickB.x), y: C.round4(masterPicks.pickB.y), z: C.round4(masterPicks.pickB.z), label: 'Main Pick B' }
       ],
       slackLegAnalysis: {
         applicable: false,
