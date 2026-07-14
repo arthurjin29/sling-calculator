@@ -631,6 +631,18 @@ document.addEventListener('DOMContentLoaded', () => {
         data.slaveLengthB = parseRequiredFloat('dcas-slave-length-b', 'Slave Beam B Length');
         data.masterOrientation = document.getElementById('dcas-master-orientation').value;
         data.bottomSlingLen = parseFloat(document.getElementById('dcas-bottom-sling-len').value) || 2;
+        const dcasMidAngle = parseFloat(document.getElementById('dcas-middle-angle').value);
+        if (!isNaN(dcasMidAngle)) {
+          if (dcasMidAngle < 30 || dcasMidAngle >= 90)
+            throw new Error('Middle Lay Angle must be between 30° and 90°.');
+          data.middleAngleDeg = dcasMidAngle;
+        }
+        const dcasTopAngle = parseFloat(document.getElementById('dcas-top-angle').value);
+        if (!isNaN(dcasTopAngle)) {
+          if (dcasTopAngle < 30 || dcasTopAngle >= 90)
+            throw new Error('Top Lay Angle must be between 30° and 90°.');
+          data.topAngleDeg = dcasTopAngle;
+        }
         break;
     }
 
