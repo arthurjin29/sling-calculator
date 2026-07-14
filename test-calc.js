@@ -491,6 +491,44 @@ runTest('dbl-cas-steep-75', doubleCasCalc,
   { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 75, totalLoad: 10 },
   { masterLength: 4, slaveLengthA: 2, slaveLengthB: 2, bottomSlingLen: 2 });
 
+// === CASCADE: COG re-centring (top slings symmetric) ===
+function runCascadeTopSymmetryTest(name, shared, config) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const top = r.tiers[2].slings; // tiers = [Bottom, Middle, Top]
+  if (Math.abs(top[0].length - top[1].length) > 0.02)
+    errs.push(`top slings unequal length: ${top[0].length} vs ${top[1].length}`);
+  if (Math.abs(top[0].angleDegFromHoriz - top[1].angleDegFromHoriz) > 0.5)
+    errs.push(`top slings unequal angle: ${top[0].angleDegFromHoriz} vs ${top[1].angleDegFromHoriz}`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+runCascadeTopSymmetryTest('dbl-cas-cog-offset-top-symmetric',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 1.5, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 });
+
+// === CASCADE: out-of-group warning ===
+function runCascadeWarningTest(name, shared, config, expected) {
+  totalTests++;
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  if (r.warnings.masterEndOutsideGroup !== expected)
+    failures.push({ name, errors: [`masterEndOutsideGroup=${r.warnings.masterEndOutsideGroup}, expected ${expected}`], shared, config });
+  else passCount++;
+}
+runCascadeWarningTest('dbl-cas-end-outside-group-true',
+  { liftingPoints: squareLPs(6), cog: { x: 3, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 10 },
+  { masterLength: 3, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2,
+    pairing: { groupA: [1, 4], groupB: [2, 3] } }, true);
+runCascadeWarningTest('dbl-cas-end-outside-group-false',
+  { liftingPoints: squareLPs(6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 10 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2,
+    pairing: { groupA: [1, 4], groupB: [2, 3] } }, false);
+
 // === 7. ADDITIONAL EDGE CASES (to reach 100+) ===
 
 // 98: COG at LP height on elevated layout (direct)
