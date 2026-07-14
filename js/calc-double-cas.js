@@ -1,13 +1,16 @@
 /**
  * Sling Length Calculator — Double Spreader (Cascading) Configuration
  *
- * Same as parallel, but the hook is replaced by a master spreader beam.
- * Each master beam end acts as the "hook" for a slave beam pair.
- * Slave beam ends sit on the direct sling paths from LP to master beam end,
- * using the same computeBeamEndPair logic as the parallel config.
+ * Each 2nd-level (slave) beam is picked over the COG of the load it carries
+ * (its sub-COG), not the geometric midpoint of its LP pair. The Main Beam's
+ * sling pick points sit inboard, over the two sub-COGs, and the hook (over
+ * the total COG) lands collinear with those two picks — so the top slings
+ * balance horizontally with no lean. Slave beam ends sit on the direct sling
+ * paths from LP to Main-Beam pick point, using the same computeBeamEndPair
+ * logic as the parallel config.
  *
- *   Top:     2 slings (hook → master beam ends)
- *   Middle:  4 slings (slave beam ends → master beam ends)
+ *   Top:     2 slings (hook → Main-Beam pick points)
+ *   Middle:  4 slings (slave beam ends → Main-Beam pick points)
  *   Bottom:  4 slings (LPs → slave beam ends)
  *   Total:   10 slings, 3 beams
  *

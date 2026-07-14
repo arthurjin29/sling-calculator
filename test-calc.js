@@ -706,6 +706,7 @@ function runCascadeBeamLengthTest(name, shared, config, expectLen, expectTooShor
   // a sign-flipped/outboard pick would push the sum above spanAB.
   const pA = r.intermediatePoints.find(p => p.label === 'Main Pick A');
   const pB = r.intermediatePoints.find(p => p.label === 'Main Pick B');
+  if (!pA || !pB) { failures.push({ name, errors: ['Main Pick A/B missing from intermediatePoints'], shared, config }); return; }
   const spanAB = Math.sqrt((mb.endB.x - mb.endA.x) ** 2 + (mb.endB.y - mb.endA.y) ** 2);
   for (const [label, p] of [['Main Pick A', pA], ['Main Pick B', pB]]) {
     const dEndA = Math.sqrt((p.x - mb.endA.x) ** 2 + (p.y - mb.endA.y) ** 2);

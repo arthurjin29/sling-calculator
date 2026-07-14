@@ -101,7 +101,7 @@ Hand-check reference: for the §1 perpendicular case, reactions = [6.25, 6.25, 4
 - Coupled 3D node-equilibrium / stiffness solver; per-member internal thrust reporting.
 - Changing the 2nd-Lvl beams to a fixed-length + inboard-pick model (they stay ends-as-attach, derived length).
 - Any non-cascade config.
-- The N=2 unsigned-arm tension solver in `calc-core.js`: the sub-COG geometry keeps the hook within the pick span and each pick within its LP span, so the "hook beyond span → hidden negative tension" pathology cannot arise here. Left unchanged; `negativeTension` warning remains as a backstop.
+- The N=2 unsigned-arm tension solver in `calc-core.js`: on the primary (reaction-weighted) path the sub-COG geometry keeps the hook within the pick span and each pick within its LP span, so the "hook beyond span → hidden negative tension" pathology cannot arise. Under the `subCogFallback` path, however — which only fires when the rig is already flagged invalid by both `cogOutsidePolygon` and `subCogFallback` — picks revert to LP midpoints and the hook can fall outside the pick span, re-exposing the solver's sign-hiding (both top tensions can report positive when true statics need one negative, and `negativeTension` does not fire). Left unchanged; flagged for `/eng-review`, out of scope to fix here.
 
 ## 9. Global constraints
 
