@@ -45,9 +45,11 @@ window.CalcDoubleCas = (() => {
     const hookXY = { x: cog.x, y: cog.y };
     const lpMidA = C.midpoint(groupALPs[0], groupALPs[1]);
     const lpMidB = C.midpoint(groupBLPs[0], groupBLPs[1]);
-    // Main beam centred on the COG so the load's COG is covered by the beam.
-    // Beam axis (mUx, mUy) still comes from the LP-group midpoints below.
-    const masterCenter = { x: cog.x, y: cog.y };
+    // Main beam centred over the load's lifting points (midpoint of the two
+    // LP-group midpoints), NOT the COG — keeps each 2nd-level beam over its LP
+    // pair so the rig hangs plumb. The hook stays over the COG (below), so when
+    // the COG is offset the two top slings come out at different lengths.
+    const masterCenter = C.midpoint(lpMidA, lpMidB);
 
     const mAxisX = lpMidB.x - lpMidA.x;
     const mAxisY = lpMidB.y - lpMidA.y;

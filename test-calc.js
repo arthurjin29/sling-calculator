@@ -491,8 +491,11 @@ runTest('dbl-cas-steep-75', doubleCasCalc,
   { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 75, totalLoad: 10 },
   { masterLength: 4, slaveLengthA: 2, slaveLengthB: 2, bottomSlingLen: 2 });
 
-// === CASCADE: COG re-centring (top slings symmetric) ===
-function runCascadeTopSymmetryTest(name, shared, config) {
+// === CASCADE: Main Beam over lifting points, hook over COG ===
+// Main Beam centres over the LP-midpoint (NOT the COG). With a centred COG the beam
+// centre coincides with the COG so the top slings are equal; with an offset COG the
+// beam stays over the LPs while the hook stays over the COG, so the top slings differ.
+function runCascadeTopEqualTest(name, shared, config) {
   totalTests++;
   const errs = [];
   let r;
@@ -500,18 +503,42 @@ function runCascadeTopSymmetryTest(name, shared, config) {
   catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
   const top = r.tiers[2].slings; // tiers = [Bottom, Middle, Top]
   if (Math.abs(top[0].length - top[1].length) > 0.02)
-    errs.push(`top slings unequal length: ${top[0].length} vs ${top[1].length}`);
-  if (Math.abs(top[0].angleDegFromHoriz - top[1].angleDegFromHoriz) > 0.5)
-    errs.push(`top slings unequal angle: ${top[0].angleDegFromHoriz} vs ${top[1].angleDegFromHoriz}`);
+    errs.push(`top slings should be equal (centred COG): ${top[0].length} vs ${top[1].length}`);
   if (errs.length) failures.push({ name, errors: errs, shared, config });
   else passCount++;
 }
-runCascadeTopSymmetryTest('dbl-cas-cog-offset-top-symmetric',
+runCascadeTopEqualTest('dbl-cas-centred-cog-top-equal',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2,
+    pairing: { groupA: [1, 4], groupB: [2, 3] } });
+
+// Offset COG: Main Beam centre stays over the LP-midpoint (NOT the COG), hook over
+// COG, so the two top slings come out at different lengths (rig hangs plumb, no lean).
+function runCascadeBeamOverLpsTest(name, shared, config, expectBeamCenter) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const mb = r.beams.find(b => b.name === 'Main Beam');
+  const beamCx = (mb.endA.x + mb.endB.x) / 2, beamCy = (mb.endA.y + mb.endB.y) / 2;
+  if (Math.abs(beamCx - expectBeamCenter.x) > 0.02 || Math.abs(beamCy - expectBeamCenter.y) > 0.02)
+    errs.push(`beam centre (${beamCx.toFixed(3)},${beamCy.toFixed(3)}) != LP-mid (${expectBeamCenter.x},${expectBeamCenter.y})`);
+  if (Math.abs(beamCx - shared.cog.x) < 0.02 && Math.abs(beamCy - shared.cog.y) < 0.02)
+    errs.push(`beam centre coincides with the offset COG — should stay over LP-mid`);
+  if (Math.abs(r.hook.x - shared.cog.x) > 0.01 || Math.abs(r.hook.y - shared.cog.y) > 0.01)
+    errs.push(`hook (${r.hook.x},${r.hook.y}) not over COG (${shared.cog.x},${shared.cog.y})`);
+  const top = r.tiers[2].slings;
+  if (Math.abs(top[0].length - top[1].length) < 0.1)
+    errs.push(`top slings should differ (offset COG): ${top[0].length} vs ${top[1].length}`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+runCascadeBeamOverLpsTest('dbl-cas-offset-cog-beam-over-lps',
   { liftingPoints: rectLPs(8, 4), cog: { x: 1.5, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
-  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 });
-runCascadeTopSymmetryTest('dbl-cas-cog-offset-y-top-symmetric',
-  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 1.5, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
-  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 });
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2,
+    pairing: { groupA: [1, 4], groupB: [2, 3] } },
+  { x: 0, y: 0 });
 
 // === CASCADE: per-lay angle overrides ===
 function runCascadeLayAngleTest(name, shared, config, tierIdx, targetAngle) {
