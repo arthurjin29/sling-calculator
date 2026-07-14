@@ -163,6 +163,30 @@ function elevatedLPs(base, zArr) {
 
 // ── Test Cases ──
 
+// === CalcCore.computeSupportReactions ===
+function runReactionsTest(name, lps, cog, W, expect) {
+  totalTests++;
+  const errs = [];
+  let R;
+  try { R = CalcCore.computeSupportReactions(lps, cog, W); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const sum = R.reduce((a, b) => a + b, 0);
+  if (Math.abs(sum - W) > 1e-6) errs.push(`sum ${sum} != W ${W}`);
+  let cx = 0, cy = 0;
+  for (let i = 0; i < lps.length; i++) { cx += R[i] * lps[i].x; cy += R[i] * lps[i].y; }
+  cx /= W; cy /= W;
+  if (Math.abs(cx - cog.x) > 1e-6 || Math.abs(cy - cog.y) > 1e-6)
+    errs.push(`centroid (${cx.toFixed(3)},${cy.toFixed(3)}) != cog (${cog.x},${cog.y})`);
+  if (expect) for (let i = 0; i < expect.length; i++)
+    if (Math.abs(R[i] - expect[i]) > 0.01) errs.push(`R[${i}]=${R[i].toFixed(3)} != ${expect[i]}`);
+  if (errs.length) failures.push({ name, errors: errs });
+  else passCount++;
+}
+const _rectReac = [{ x: -4, y: -2 }, { x: 4, y: -2 }, { x: 4, y: 2 }, { x: -4, y: 2 }];
+runReactionsTest('reactions-centred', _rectReac, { x: 0, y: 0 }, 20, [5, 5, 5, 5]);
+runReactionsTest('reactions-perp-offset', _rectReac, { x: 0, y: 1.5 }, 100, [6.25, 6.25, 43.75, 43.75]);
+runReactionsTest('reactions-onaxis-offset', _rectReac, { x: 2, y: 0 }, 20, null);
+
 // === 1. DIRECT (4-leg) ===
 const directCalc = (s, c) => CalcDirect.calculate(s, c);
 

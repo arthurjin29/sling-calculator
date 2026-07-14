@@ -217,6 +217,44 @@ const CalcCore = (() => {
     return calcLoadDistribution([pointA, pointB], hook, totalLoad);
   }
 
+  /**
+   * Minimum-norm rigid-body support reactions for a load on N support points.
+   * Solves A·R = b with rows [1..], [x_i - cog.x], [y_i - cog.y] and
+   * b = [totalLoad, 0, 0] (vertical equilibrium + moment balance about the COG).
+   * Statically indeterminate for N>3 → min-norm solution R = Aᵀ(AAᵀ)⁻¹b.
+   * By construction ΣR = totalLoad and the reaction-weighted centroid of the
+   * points equals the COG. Entries may be negative when the COG is near or
+   * outside the support hull (caller should guard).
+   *
+   * @param {Array<{x,y}>} points - support points (plan)
+   * @param {{x,y}} cog - centre of gravity (plan)
+   * @param {number} totalLoad - total vertical load
+   * @returns {number[]} reaction per point
+   */
+  function computeSupportReactions(points, cog, totalLoad) {
+    const N = points.length;
+    const A = [[], [], []];
+    for (let i = 0; i < N; i++) {
+      A[0][i] = 1;
+      A[1][i] = points[i].x - cog.x;
+      A[2][i] = points[i].y - cog.y;
+    }
+    const b = [totalLoad, 0, 0];
+    const AT = transposeNxM(A, 3, N);
+    const AAT = matMxNMultiply(A, AT, 3, N, 3);
+    const AATinv = mat3x3Inverse(AAT);
+    if (!AATinv) return Array(N).fill(totalLoad / N);
+    const y = [];
+    for (let i = 0; i < 3; i++) {
+      y[i] = AATinv[i][0] * b[0] + AATinv[i][1] * b[1] + AATinv[i][2] * b[2];
+    }
+    const R = [];
+    for (let i = 0; i < N; i++) {
+      R[i] = AT[i][0] * y[0] + AT[i][1] * y[1] + AT[i][2] * y[2];
+    }
+    return R;
+  }
+
   // --- Sling builder ---
 
   /**
@@ -522,7 +560,7 @@ const CalcCore = (() => {
     pointInPolygon2D,
     mat3x3Inverse, mat2x2Inverse,
     transposeNxM, matMxNMultiply,
-    calcLoadDistribution, calcTwoSlingTension,
+    calcLoadDistribution, calcTwoSlingTension, computeSupportReactions,
     buildSling, computeVerticalLoad,
     analyzeSlackLeg,
     applyLoadSharingFactor,
