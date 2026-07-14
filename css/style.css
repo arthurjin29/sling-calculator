@@ -501,29 +501,41 @@ tr:hover { background: #eaf2f8; }
 
 /* Advanced-mode 3-panel app-shell (screen, wide, advanced only) */
 @media screen and (min-width: 1001px) {
+  html.mode-advanced, body.mode-advanced { height: 100dvh; margin: 0; overflow: hidden; }   /* no page scroll */
   body.mode-advanced .container {
     display: flex;
     flex-direction: column;
     height: 100dvh;
     max-width: none;
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 1rem;
     box-sizing: border-box;
-    overflow: hidden;               /* no page scroll — panels scroll internally */
+    overflow: hidden;
   }
+  /* Compact the page header so the panels get the vertical space */
+  body.mode-advanced .container > h1 { font-size: 1.35rem; margin: 0 0 0.2rem; }
+  body.mode-advanced .subtitle { display: none; }
+  body.mode-advanced .disclaimer { font-size: 0.72rem; padding: 0.4rem 0.6rem; margin-bottom: 0.4rem; }
+  body.mode-advanced .mode-toggle { margin: 0.2rem 0 0.4rem; }
   body.mode-advanced #advanced-layout {
     flex: 1 1 auto;
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(340px, 400px) 1fr;
-    grid-template-rows: auto minmax(0, 1fr) minmax(0, 40vh);
+    grid-template-rows: auto minmax(0, 1.4fr) minmax(0, 1fr);
     grid-template-areas:
       "toolbar toolbar"
       "inputs  diagram"
       "results results";
-    gap: 1rem;
+    gap: 0.75rem;
   }
   body.mode-advanced #advanced-layout > .toolbar { grid-area: toolbar; }
   body.mode-advanced #calc-form { grid-area: inputs; overflow: auto; min-height: 0; margin: 0; }
+  /* Fit the inputs into the narrow left column: single-column LP stack */
+  body.mode-advanced #calc-form .lp-grid { grid-template-columns: 1fr; }
+  body.mode-advanced #calc-form .coord-row { flex-wrap: wrap; }
+  body.mode-advanced #calc-form .coord-row input { width: 68px; }
+  body.mode-advanced #calc-form .params-row { flex-direction: column; }
+  body.mode-advanced #calc-form .btn-row { flex-wrap: wrap; }
   body.mode-advanced #diagram-panel { grid-area: diagram; min-height: 0; display: flex; }
   body.mode-advanced #diagram-panel > .card { flex: 1; display: flex; flex-direction: column; margin: 0; min-height: 0; }
   body.mode-advanced #diagram-panel #scene-container { flex: 1; height: auto; min-height: 0; }
