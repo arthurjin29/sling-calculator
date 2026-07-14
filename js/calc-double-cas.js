@@ -109,18 +109,6 @@ window.CalcDoubleCas = (() => {
       endB: { ...masterEndBxy, z: masterZ }
     };
 
-    // Out-of-group check: does either master end project outside its LP group's
-    // span along the beam axis? Signals the Main Beam is too short for this COG.
-    const projOnAxis = (p) => (p.x - masterCenter.x) * mUx + (p.y - masterCenter.y) * mUy;
-    const endOutsideGroup = (groupLPs, endXY) => {
-      const projs = groupLPs.map(projOnAxis);
-      const lo = Math.min(...projs), hi = Math.max(...projs);
-      const e = projOnAxis(endXY);
-      return e < lo - 0.01 || e > hi + 0.01;
-    };
-    const masterEndOutsideGroup =
-      endOutsideGroup(groupALPs, masterEndAxy) || endOutsideGroup(groupBLPs, masterEndBxy);
-
     // Actual slave beam lengths
     const actualSlaveLenA = C.round4(C.dist3D(slaveA1, slaveA2));
     const actualSlaveLenB = C.round4(C.dist3D(slaveB1, slaveB2));
@@ -311,7 +299,6 @@ window.CalcDoubleCas = (() => {
         topSlingAngleLow,
         nearHorizontalBottom,
         bottomSlingBelowMin,
-        masterEndOutsideGroup,
         liftBeamBendingNotChecked: false
       }
     };
