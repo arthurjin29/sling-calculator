@@ -520,7 +520,7 @@ tr:hover { background: #eaf2f8; }
     flex: 1 1 auto;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(340px, 400px) 1fr;
+    grid-template-columns: 1fr 1fr;
     grid-template-rows: auto minmax(0, 1.4fr) minmax(0, 1fr);
     grid-template-areas:
       "toolbar toolbar"
