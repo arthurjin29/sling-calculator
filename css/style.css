@@ -529,17 +529,26 @@ tr:hover { background: #eaf2f8; }
     gap: 0.75rem;
   }
   body.mode-advanced #advanced-layout > .toolbar { grid-area: toolbar; }
-  body.mode-advanced #calc-form { grid-area: inputs; overflow: auto; min-height: 0; margin: 0; }
-  /* Fit the inputs into the narrow left column: single-column LP stack */
-  body.mode-advanced #calc-form .lp-grid { grid-template-columns: 1fr; }
-  body.mode-advanced #calc-form .coord-row { flex-wrap: wrap; }
-  body.mode-advanced #calc-form .coord-row input { width: 68px; }
+  /* min-width:0 lets the 1fr columns actually split 50/50 — without it the
+     3D canvas's baked-in pixel width forces the right column wide (grid/flex
+     items default to min-width:auto and won't shrink below their content). */
+  body.mode-advanced #calc-form { grid-area: inputs; overflow: auto; min-width: 0; min-height: 0; margin: 0; font-size: 0.85rem; }
+  /* Smaller, tighter inputs in the left panel */
+  body.mode-advanced #calc-form .card h2 { font-size: 1rem; margin-bottom: 0.5rem; padding-bottom: 0.3rem; }
+  body.mode-advanced #calc-form .lp-grid { grid-template-columns: 1fr; gap: 0.5rem; }
+  body.mode-advanced #calc-form .lp-group { padding: 0.5rem 0.6rem; }
+  body.mode-advanced #calc-form .lp-group h3 { font-size: 0.8rem; margin-bottom: 0.3rem; }
+  body.mode-advanced #calc-form .coord-row { flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.2rem; }
+  body.mode-advanced #calc-form .coord-row input { width: 60px; padding: 0.25rem 0.4rem; }
+  body.mode-advanced #calc-form .param-group label { font-size: 0.78rem; }
+  body.mode-advanced #calc-form .param-group input { padding: 0.3rem 0.5rem; font-size: 0.85rem; }
   body.mode-advanced #calc-form .params-row { flex-direction: column; }
   body.mode-advanced #calc-form .btn-row { flex-wrap: wrap; }
-  body.mode-advanced #diagram-panel { grid-area: diagram; min-height: 0; display: flex; }
-  body.mode-advanced #diagram-panel > .card { flex: 1; display: flex; flex-direction: column; margin: 0; min-height: 0; }
-  body.mode-advanced #diagram-panel #scene-container { flex: 1; height: auto; min-height: 0; }
-  body.mode-advanced #results { grid-area: results; overflow: auto; min-height: 0; position: relative; }
+  body.mode-advanced #diagram-panel { grid-area: diagram; min-width: 0; min-height: 0; display: flex; }
+  body.mode-advanced #diagram-panel > .card { flex: 1; display: flex; flex-direction: column; margin: 0; min-width: 0; min-height: 0; }
+  body.mode-advanced #diagram-panel #scene-container { flex: 1; height: auto; min-width: 0; min-height: 0; }
+  body.mode-advanced #diagram-panel #scene-container canvas { max-width: 100%; display: block; }
+  body.mode-advanced #results { grid-area: results; overflow: auto; min-width: 0; min-height: 0; position: relative; }
   /* Sticky safety warnings at the top of the results panel */
   body.mode-advanced #results #calc-warnings {
     position: sticky;
