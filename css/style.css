@@ -520,7 +520,7 @@ tr:hover { background: #eaf2f8; }
     flex: 1 1 auto;
     min-height: 0;
     display: grid;
-    grid-template-columns: 0.85fr 1fr;
+    grid-template-columns: 0.7fr 1fr;
     grid-template-rows: auto minmax(0, 1.4fr) minmax(0, 1fr);
     grid-template-areas:
       "toolbar toolbar"
@@ -535,10 +535,10 @@ tr:hover { background: #eaf2f8; }
   body.mode-advanced #calc-form { grid-area: inputs; overflow: auto; min-width: 0; min-height: 0; margin: 0; font-size: 0.85rem; }
   /* Smaller, tighter inputs in the left panel */
   body.mode-advanced #calc-form .card h2 { font-size: 1rem; margin-bottom: 0.5rem; padding-bottom: 0.3rem; }
-  body.mode-advanced #calc-form .lp-grid { grid-template-columns: 1fr; gap: 0.5rem; }
-  body.mode-advanced #calc-form .lp-group { padding: 0.5rem 0.6rem; }
-  body.mode-advanced #calc-form .lp-group h3 { font-size: 0.8rem; margin-bottom: 0.3rem; }
-  body.mode-advanced #calc-form .coord-row { flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.2rem; }
+  body.mode-advanced #calc-form .lp-grid { grid-template-columns: 1fr; gap: 0.3rem; }
+  body.mode-advanced #calc-form .lp-group { padding: 0.35rem 0.5rem; }
+  body.mode-advanced #calc-form .lp-group h3 { font-size: 0.8rem; margin-bottom: 0.2rem; }
+  body.mode-advanced #calc-form .coord-row { flex-wrap: wrap; gap: 0.2rem; margin-bottom: 0.1rem; }
   body.mode-advanced #calc-form .coord-row input { width: 120px; box-sizing: border-box; padding: 0.25rem 0.4rem; }
   body.mode-advanced #calc-form .param-group label { font-size: 0.78rem; }
   body.mode-advanced #calc-form .param-group input { padding: 0.3rem 0.5rem; font-size: 0.85rem; }
