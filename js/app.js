@@ -955,6 +955,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (warnings.bottomAngleLow) {
       msgs.push('One or more bottom sling angles are below the specified minimum angle. Increase the top sling length or revise the geometry.');
     }
+    if (warnings.mainBeamTooShort) {
+      msgs.push('Main beam is shorter than the required pick-point span — the beam has been drawn at the minimum span needed to reach both pick points. Specify a longer main beam.');
+    }
     if (warnings.liftBeamBendingNotChecked) {
       msgs.push('Lifting beam bending capacity has NOT been checked — verify the beam can safely support the calculated loads and span.');
     }

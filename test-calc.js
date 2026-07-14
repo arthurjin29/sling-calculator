@@ -690,6 +690,35 @@ runCascadeMiddleLongerTest('dbl-cas-middle-angle-lengthens',
   { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 }, 65);
 
+// Main Beam is a physical bar of masterLength with picks inboard; too-short warns.
+function runCascadeBeamLengthTest(name, shared, config, expectLen, expectTooShort) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const mb = r.beams.find(b => b.name === 'Main Beam');
+  if (Math.abs(mb.length - expectLen) > 0.01) errs.push(`main beam length ${mb.length} != ${expectLen}`);
+  if (!!r.warnings.mainBeamTooShort !== expectTooShort)
+    errs.push(`mainBeamTooShort=${r.warnings.mainBeamTooShort}, expected ${expectTooShort}`);
+  // picks must lie within the physical bar span (endA..endB)
+  const pA = r.intermediatePoints.find(p => p.label === 'Main Pick A');
+  const spanAB = Math.sqrt((mb.endB.x - mb.endA.x) ** 2 + (mb.endB.y - mb.endA.y) ** 2);
+  const dPickA = Math.sqrt((pA.x - mb.endA.x) ** 2 + (pA.y - mb.endA.y) ** 2);
+  if (dPickA > spanAB + 0.01) errs.push(`pickA outside bar span`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+// pickSpacing for rectLPs(8,4) with pairing [1,4]/[2,3] and centred COG = 8.
+runCascadeBeamLengthTest('dbl-cas-main-beam-honors-length',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 10, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
+  10, false);
+runCascadeBeamLengthTest('dbl-cas-main-beam-too-short',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
+  8, true);
+
 // === 7. ADDITIONAL EDGE CASES (to reach 100+) ===
 
 // 98: COG at LP height on elevated layout (direct)

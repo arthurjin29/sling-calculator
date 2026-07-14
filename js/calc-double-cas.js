@@ -116,6 +116,17 @@ window.CalcDoubleCas = (() => {
       pickB: { ...pickBxy, z: masterZ }
     };
 
+    // Main Beam is a physical bar of masterLength; the sling pick points slide
+    // inboard over the sub-COGs. Bar spans the picks plus symmetric overhang.
+    const pickSpacing = C.horizontalDist(masterPicks.pickA, masterPicks.pickB);
+    const mainBeamTooShort = masterLength < pickSpacing - 1e-9;
+    const physicalLength = Math.max(masterLength, pickSpacing);
+    const overhang = (physicalLength - pickSpacing) / 2;
+    let mbUx = 0, mbUy = 0;
+    if (pickSpacing > 1e-9) { mbUx = (pickBxy.x - pickAxy.x) / pickSpacing; mbUy = (pickBxy.y - pickAxy.y) / pickSpacing; }
+    const mainBeamEndA = { x: pickAxy.x - mbUx * overhang, y: pickAxy.y - mbUy * overhang, z: masterZ };
+    const mainBeamEndB = { x: pickBxy.x + mbUx * overhang, y: pickBxy.y + mbUy * overhang, z: masterZ };
+
     // Actual slave beam lengths
     const actualSlaveLenA = C.round4(C.dist3D(slaveA1, slaveA2));
     const actualSlaveLenB = C.round4(C.dist3D(slaveB1, slaveB2));
@@ -272,9 +283,9 @@ window.CalcDoubleCas = (() => {
       beams: [
         {
           name: 'Main Beam',
-          endA: { x: C.round4(masterPicks.pickA.x), y: C.round4(masterPicks.pickA.y), z: C.round4(masterPicks.pickA.z) },
-          endB: { x: C.round4(masterPicks.pickB.x), y: C.round4(masterPicks.pickB.y), z: C.round4(masterPicks.pickB.z) },
-          length: C.round4(C.horizontalDist(masterPicks.pickA, masterPicks.pickB)), pickupPoint: null
+          endA: { x: C.round4(mainBeamEndA.x), y: C.round4(mainBeamEndA.y), z: C.round4(mainBeamEndA.z) },
+          endB: { x: C.round4(mainBeamEndB.x), y: C.round4(mainBeamEndB.y), z: C.round4(mainBeamEndB.z) },
+          length: C.round4(physicalLength), pickupPoint: null
         },
         {
           name: '2nd Lvl Beam A',
@@ -306,6 +317,7 @@ window.CalcDoubleCas = (() => {
         topSlingAngleLow,
         nearHorizontalBottom,
         bottomSlingBelowMin,
+        mainBeamTooShort,
         liftBeamBendingNotChecked: false
       }
     };
