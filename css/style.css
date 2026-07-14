@@ -499,6 +499,45 @@ tr:hover { background: #eaf2f8; }
   background: #f0f4f8;
 }
 
+/* Advanced-mode 3-panel app-shell (screen, wide, advanced only) */
+@media screen and (min-width: 1001px) {
+  body.mode-advanced .container {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-width: none;
+    padding: 0.75rem 1rem;
+    box-sizing: border-box;
+    overflow: hidden;               /* no page scroll — panels scroll internally */
+  }
+  body.mode-advanced #advanced-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(340px, 400px) 1fr;
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 40vh);
+    grid-template-areas:
+      "toolbar toolbar"
+      "inputs  diagram"
+      "results results";
+    gap: 1rem;
+  }
+  body.mode-advanced #advanced-layout > .toolbar { grid-area: toolbar; }
+  body.mode-advanced #calc-form { grid-area: inputs; overflow: auto; min-height: 0; margin: 0; }
+  body.mode-advanced #diagram-panel { grid-area: diagram; min-height: 0; display: flex; }
+  body.mode-advanced #diagram-panel > .card { flex: 1; display: flex; flex-direction: column; margin: 0; min-height: 0; }
+  body.mode-advanced #diagram-panel #scene-container { flex: 1; height: auto; min-height: 0; }
+  body.mode-advanced #results { grid-area: results; overflow: auto; min-height: 0; position: relative; }
+  /* Sticky safety warnings at the top of the results panel */
+  body.mode-advanced #results #calc-warnings {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--bg, #fff);
+    padding-bottom: 0.5rem;
+  }
+}
+
 /* Print styles */
 @media print {
   body { padding: 0.5cm; background: white; font-size: 10pt; }
