@@ -56,14 +56,22 @@ window.CalcDoubleCas = (() => {
     const reactions = C.computeSupportReactions(liftingPoints, cog, totalLoad);
     let subCogFallback = false;
     const subCogOf = (idxs) => {
-      let w = 0, sx = 0, sy = 0, anyNeg = false;
+      // A negative min-norm reaction means that LP would have to pull DOWN (the
+      // COG is outside the support "kern"); slings can't push. Clamp negatives
+      // to zero and renormalise so the sub-COG stays LOAD-AWARE (biased to the
+      // loaded side) and on the beam line, instead of discarding the load info.
+      // Flag the state as unreliable either way.
+      let anyNeg = false;
+      for (const i of idxs) { if (reactions[i] < 0) anyNeg = true; }
+      if (anyNeg) subCogFallback = true;
+      let w = 0, sx = 0, sy = 0;
       for (const i of idxs) {
-        if (reactions[i] < 0) anyNeg = true;
-        w += reactions[i]; sx += reactions[i] * liftingPoints[i].x; sy += reactions[i] * liftingPoints[i].y;
+        const r = Math.max(0, reactions[i]);
+        w += r; sx += r * liftingPoints[i].x; sy += r * liftingPoints[i].y;
       }
-      if (anyNeg || Math.abs(w) < 1e-9) {
-        // COG near/outside the support hull → sub-COG ill-defined; use the
-        // geometric LP-pair midpoint so the rig stays buildable (warned).
+      if (w < 1e-9) {
+        // No positive reaction on this side (e.g. both clamped) → last-resort
+        // geometric LP-pair midpoint so the rig stays buildable.
         subCogFallback = true;
         const mid = C.midpoint(liftingPoints[idxs[0]], liftingPoints[idxs[1]]);
         return { x: mid.x, y: mid.y };

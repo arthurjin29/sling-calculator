@@ -751,6 +751,27 @@ runCascadeSubCogFallbackTest('dbl-cas-subcog-no-fallback',
   { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
   false);
+// In-hull near-corner COG (inside the polygon but outside the support "kern"):
+// a reaction goes negative -> clamp-and-renormalise keeps the pick LOAD-AWARE
+// (lands on the loaded LP), NOT the geometric midpoint. Still flagged unreliable.
+(function () {
+  totalTests++;
+  const errs = [];
+  const shared = { liftingPoints: rectLPs(8, 4), cog: { x: 3.5, y: 1.75, z: 0 }, minAngleDeg: 45, totalLoad: 20 };
+  const config = { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } };
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name: 'dbl-cas-subcog-clamp-loadaware', error: `EXCEPTION: ${e.message}` }); return; }
+  if (!r.warnings.subCogFallback) errs.push('subCogFallback should be true for in-hull near-corner COG');
+  if (r.warnings.cogOutsidePolygon) errs.push('cogOutsidePolygon should be false (COG is inside the hull)');
+  const pA = r.intermediatePoints.find(p => p.label === 'Main Pick A');
+  // group A = LP1(-4,-2) [reaction<0 -> clamped to 0] + LP4(-4,2): pick lands on
+  // the loaded LP4 (~ -4, 2), NOT the geometric midpoint (-4, 0).
+  if (!pA || Math.abs(pA.x - (-4)) > 0.01 || pA.y < 1.5)
+    errs.push(`pickA (${pA && pA.x},${pA && pA.y}) not clamped toward loaded LP4 (~-4,2); midpoint would be (-4,0)`);
+  if (errs.length) failures.push({ name: 'dbl-cas-subcog-clamp-loadaware', errors: errs });
+  else passCount++;
+})();
 
 // === 7. ADDITIONAL EDGE CASES (to reach 100+) ===
 
