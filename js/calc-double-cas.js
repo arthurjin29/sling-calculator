@@ -23,6 +23,9 @@ window.CalcDoubleCas = (() => {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
     const { masterLength, slaveLengthA, slaveLengthB, bottomSlingLen } = config;
     const minAngleRad = C.degToRad(minAngleDeg);
+    // Optional per-lay target angles (governing minimum). Blank -> global min-angle.
+    const middleAngleRad = config.middleAngleDeg != null ? C.degToRad(config.middleAngleDeg) : minAngleRad;
+    const topAngleRad = config.topAngleDeg != null ? C.degToRad(config.topAngleDeg) : minAngleRad;
     const minSlingLen = bottomSlingLen ?? 2;
 
     // ── 1. LP pairing ──
@@ -96,7 +99,7 @@ window.CalcDoubleCas = (() => {
       for (let i = 0; i < 4; i++) {
         const hd = C.horizontalDist(slaveEnds[i], mEnds[i]);
         if (hd > 0.001) {
-          const requiredZ = slaveEnds[i].z + hd * Math.tan(minAngleRad);
+          const requiredZ = slaveEnds[i].z + hd * Math.tan(middleAngleRad);
           if (requiredZ > newMasterZ) newMasterZ = requiredZ;
         }
       }
@@ -119,7 +122,7 @@ window.CalcDoubleCas = (() => {
     const hook = {
       x: cog.x,
       y: cog.y,
-      z: masterZ + Math.max(hDistHA, hDistHB) * Math.tan(minAngleRad)
+      z: masterZ + Math.max(hDistHA, hDistHB) * Math.tan(topAngleRad)
     };
 
     // ── 5. COG polygon validation ──

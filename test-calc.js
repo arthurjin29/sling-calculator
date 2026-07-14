@@ -510,6 +510,53 @@ runCascadeTopSymmetryTest('dbl-cas-cog-offset-top-symmetric',
   { liftingPoints: rectLPs(8, 4), cog: { x: 1.5, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 });
 
+// === CASCADE: per-lay angle overrides ===
+function runCascadeLayAngleTest(name, shared, config, tierIdx, targetAngle) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const slings = r.tiers[tierIdx].slings; // 1 = Middle, 2 = Top
+  const govAngle = Math.min(...slings.map(s => s.angleDegFromHoriz));
+  if (Math.abs(govAngle - targetAngle) > 1.0)
+    errs.push(`governing angle ${govAngle.toFixed(2)} != target ${targetAngle}`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+
+// Middle lay driven to 60 deg (symmetric load -> all middle slings ~60)
+runCascadeLayAngleTest('dbl-cas-middle-angle-60',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, middleAngleDeg: 60 },
+  1, 60);
+
+// Top lay driven to 50 deg
+runCascadeLayAngleTest('dbl-cas-top-angle-50',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, topAngleDeg: 50 },
+  2, 50);
+
+// Larger middle angle -> longer middle slings than the blank baseline
+function runCascadeMiddleLongerTest(name, shared, baseConfig, angleDeg) {
+  totalTests++;
+  const errs = [];
+  let base, steep;
+  try {
+    base = CalcDoubleCas.calculate(shared, baseConfig);
+    steep = CalcDoubleCas.calculate(shared, { ...baseConfig, middleAngleDeg: angleDeg });
+  } catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const baseLen = base.tiers[1].slings[0].length;
+  const steepLen = steep.tiers[1].slings[0].length;
+  if (!(steepLen > baseLen + 0.05))
+    errs.push(`middle sling not longer: base ${baseLen} vs ${angleDeg}deg ${steepLen}`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config: baseConfig });
+  else passCount++;
+}
+runCascadeMiddleLongerTest('dbl-cas-middle-angle-lengthens',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 }, 65);
+
 // === 7. ADDITIONAL EDGE CASES (to reach 100+) ===
 
 // 98: COG at LP height on elevated layout (direct)
