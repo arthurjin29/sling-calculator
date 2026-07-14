@@ -509,6 +509,9 @@ function runCascadeTopSymmetryTest(name, shared, config) {
 runCascadeTopSymmetryTest('dbl-cas-cog-offset-top-symmetric',
   { liftingPoints: rectLPs(8, 4), cog: { x: 1.5, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 });
+runCascadeTopSymmetryTest('dbl-cas-cog-offset-y-top-symmetric',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 1.5, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 });
 
 // === CASCADE: per-lay angle overrides ===
 function runCascadeLayAngleTest(name, shared, config, tierIdx, targetAngle) {
@@ -536,6 +539,16 @@ runCascadeLayAngleTest('dbl-cas-top-angle-50',
   { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, topAngleDeg: 50 },
   2, 50);
+
+// Per-lay angle is a FLOOR at the global min: a below-min override must NOT lower the lay.
+runCascadeLayAngleTest('dbl-cas-top-angle-below-globalmin-floored',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, topAngleDeg: 30 },
+  2, 60);  // top governed to 60 (the global min), NOT 30
+runCascadeLayAngleTest('dbl-cas-middle-angle-below-globalmin-floored',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 60, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, middleAngleDeg: 30 },
+  1, 60);  // middle governed to >= 60
 
 // Larger middle angle -> longer middle slings than the blank baseline
 function runCascadeMiddleLongerTest(name, shared, baseConfig, angleDeg) {

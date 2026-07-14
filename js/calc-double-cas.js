@@ -24,8 +24,8 @@ window.CalcDoubleCas = (() => {
     const { masterLength, slaveLengthA, slaveLengthB, bottomSlingLen } = config;
     const minAngleRad = C.degToRad(minAngleDeg);
     // Optional per-lay target angles (governing minimum). Blank -> global min-angle.
-    const middleAngleRad = config.middleAngleDeg != null ? C.degToRad(config.middleAngleDeg) : minAngleRad;
-    const topAngleRad = config.topAngleDeg != null ? C.degToRad(config.topAngleDeg) : minAngleRad;
+    const middleAngleRad = config.middleAngleDeg != null ? Math.max(minAngleRad, C.degToRad(config.middleAngleDeg)) : minAngleRad;
+    const topAngleRad = config.topAngleDeg != null ? Math.max(minAngleRad, C.degToRad(config.topAngleDeg)) : minAngleRad;
     const minSlingLen = bottomSlingLen ?? 2;
 
     // ── 1. LP pairing ──
@@ -116,7 +116,7 @@ window.CalcDoubleCas = (() => {
     const actualSlaveLenA = C.round4(C.dist3D(slaveA1, slaveA2));
     const actualSlaveLenB = C.round4(C.dist3D(slaveB1, slaveB2));
 
-    // ── 4. Hook — above master beam at min angle ──
+    // ── 4. Hook — above master beam at top-lay angle (default min angle) ──
     const hDistHA = C.horizontalDist(masterEnds.endA, hookXY);
     const hDistHB = C.horizontalDist(masterEnds.endB, hookXY);
     const hook = {
