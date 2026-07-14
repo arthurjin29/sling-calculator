@@ -51,9 +51,20 @@ window.CalcDoubleCas = (() => {
     const hookXY = { x: cog.x, y: cog.y };
 
     const reactions = C.computeSupportReactions(liftingPoints, cog, totalLoad);
+    let subCogFallback = false;
     const subCogOf = (idxs) => {
-      let w = 0, sx = 0, sy = 0;
-      for (const i of idxs) { w += reactions[i]; sx += reactions[i] * liftingPoints[i].x; sy += reactions[i] * liftingPoints[i].y; }
+      let w = 0, sx = 0, sy = 0, anyNeg = false;
+      for (const i of idxs) {
+        if (reactions[i] < 0) anyNeg = true;
+        w += reactions[i]; sx += reactions[i] * liftingPoints[i].x; sy += reactions[i] * liftingPoints[i].y;
+      }
+      if (anyNeg || Math.abs(w) < 1e-9) {
+        // COG near/outside the support hull → sub-COG ill-defined; use the
+        // geometric LP-pair midpoint so the rig stays buildable (warned).
+        subCogFallback = true;
+        const mid = C.midpoint(liftingPoints[idxs[0]], liftingPoints[idxs[1]]);
+        return { x: mid.x, y: mid.y };
+      }
       return { x: sx / w, y: sy / w };
     };
     const subCogA = subCogOf(groupAIdxs);
@@ -318,6 +329,7 @@ window.CalcDoubleCas = (() => {
         nearHorizontalBottom,
         bottomSlingBelowMin,
         mainBeamTooShort,
+        subCogFallback,
         liftBeamBendingNotChecked: false
       }
     };

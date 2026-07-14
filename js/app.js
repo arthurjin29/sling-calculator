@@ -958,6 +958,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (warnings.mainBeamTooShort) {
       msgs.push('Main beam is shorter than the required pick-point span — the beam has been drawn at the minimum span needed to reach both pick points. Specify a longer main beam.');
     }
+    if (warnings.subCogFallback) {
+      msgs.push('COG is near or outside the lifting-point hull, so a side’s load share went negative — the pick point fell back to the geometric midpoint. Verify the COG and lifting-point positions.');
+    }
     if (warnings.liftBeamBendingNotChecked) {
       msgs.push('Lifting beam bending capacity has NOT been checked — verify the beam can safely support the calculated loads and span.');
     }

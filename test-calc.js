@@ -725,6 +725,32 @@ runCascadeBeamLengthTest('dbl-cas-main-beam-too-short',
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
   8, true);
 
+// COG beyond the LP hull yields a negative reaction → sub-COG falls back to the
+// geometric midpoint and warns, but geometry stays finite.
+function runCascadeSubCogFallbackTest(name, shared, config, expectFallback) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  if (!!r.warnings.subCogFallback !== expectFallback)
+    errs.push(`subCogFallback=${r.warnings.subCogFallback}, expected ${expectFallback}`);
+  const all = r.tiers.flatMap(t => t.slings);
+  if (all.some(s => !isFinite(s.length) || s.length <= 0)) errs.push(`non-finite/zero sling length under fallback`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+// cog x=5 (beyond LP x=4) → reactions [-1.25, 11.25, 11.25, -1.25] → fallback.
+runCascadeSubCogFallbackTest('dbl-cas-subcog-fallback',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 5, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
+  true);
+// Centred COG → no fallback.
+runCascadeSubCogFallbackTest('dbl-cas-subcog-no-fallback',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
+  false);
+
 // === 7. ADDITIONAL EDGE CASES (to reach 100+) ===
 
 // 98: COG at LP height on elevated layout (direct)
