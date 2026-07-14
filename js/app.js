@@ -21,16 +21,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Simple / Advanced mode toggle ---
   const simpleSection = document.getElementById('simple-mode');
   const toolbarEl = document.querySelector('.toolbar');
+  const advancedLayout = document.getElementById('advanced-layout');
   const modeSimpleBtn = document.getElementById('mode-simple');
   const modeAdvancedBtn = document.getElementById('mode-advanced');
   function setMode(mode) {
     const simple = mode === 'simple';
     if (simpleSection) simpleSection.style.display = simple ? '' : 'none';
+    if (advancedLayout) advancedLayout.style.display = simple ? 'none' : '';
     if (toolbarEl) toolbarEl.style.display = simple ? 'none' : '';
     form.style.display = simple ? 'none' : '';
     resultsSection.style.display = simple ? 'none' : '';
+    document.documentElement.classList.toggle('mode-advanced', !simple);
+    document.body.classList.toggle('mode-advanced', !simple);
     if (modeSimpleBtn) modeSimpleBtn.classList.toggle('btn-primary', simple);
     if (modeAdvancedBtn) modeAdvancedBtn.classList.toggle('btn-primary', !simple);
+    if (!simple) {
+      // The 3D canvas has zero size while the shell is hidden; once it becomes
+      // visible, let the scene re-read its container and resize. Safe no-op if
+      // the scene hasn't initialised yet (no 'resize' listener registered).
+      requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    }
   }
   if (modeSimpleBtn) modeSimpleBtn.addEventListener('click', () => setMode('simple'));
   if (modeAdvancedBtn) modeAdvancedBtn.addEventListener('click', () => setMode('advanced'));
