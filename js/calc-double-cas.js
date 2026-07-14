@@ -61,8 +61,11 @@ window.CalcDoubleCas = (() => {
       // to zero and renormalise so the sub-COG stays LOAD-AWARE (biased to the
       // loaded side) and on the beam line, instead of discarding the load info.
       // Flag the state as unreliable either way.
+      // Flag only meaningfully-negative reactions; a float-noise value at the
+      // exact kern boundary clamps to ~0 with no geometric effect, so it should
+      // not raise the UNRELIABLE warning.
       let anyNeg = false;
-      for (const i of idxs) { if (reactions[i] < 0) anyNeg = true; }
+      for (const i of idxs) { if (reactions[i] < -1e-9) anyNeg = true; }
       if (anyNeg) subCogFallback = true;
       let w = 0, sx = 0, sy = 0;
       for (const i of idxs) {
