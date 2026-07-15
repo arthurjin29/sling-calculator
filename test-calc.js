@@ -226,6 +226,52 @@ runFixedBeamEndsTest('fbe-zero-share',
   { x: -2, y: 0 }, { x: 2, y: 0 }, 0, 0, { x: 0, y: 0 }, 4,
   { end0: { x: -2, y: 0 }, end1: { x: 2, y: 0 } });
 
+// === CalcCore.solveHangingBeam ===
+function runHangingBeamTest(name, lpA, lpB, wA, wB, hook, H, length, minAngleDeg, minSling, expect) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcCore.solveHangingBeam(lpA, lpB, wA, wB, hook, H, length, CalcCore.degToRad(minAngleDeg), minSling); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  if (!r.converged) errs.push('did not converge');
+  const dx = r.end1.x - r.end0.x, dy = r.end1.y - r.end0.y, dz = r.end1.z - r.end0.z;
+  const gotLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (Math.abs(gotLen - length) > 1e-4) errs.push(`length ${gotLen.toFixed(4)} != ${length}`);
+  // Net horizontal on the beam ~ 0 (each end: top vert = bottom vert = w).
+  const z = r.end0.z;
+  const hnet = (e, lp, w) => ({
+    x: w * ((hook.x - e.x) / (H - z) + (lp.x - e.x) / (z - lp.z)),
+    y: w * ((hook.y - e.y) / (H - z) + (lp.y - e.y) / (z - lp.z))
+  });
+  const ha = hnet(r.end0, lpA, wA), hb = hnet(r.end1, lpB, wB);
+  const net = Math.sqrt((ha.x + hb.x) ** 2 + (ha.y + hb.y) ** 2);
+  if (net > 0.01) errs.push(`net horizontal ${net.toFixed(4)} not ~0`);
+  // Beam sits near its own LPs, not dragged to the load centre.
+  const cx = (r.end0.x + r.end1.x) / 2, cy = (r.end0.y + r.end1.y) / 2;
+  const subx = (wA * lpA.x + wB * lpB.x) / (wA + wB), suby = (wA * lpA.y + wB * lpB.y) / (wA + wB);
+  if (Math.hypot(cx - subx, cy - suby) > length) errs.push(`centre far from its sub-COG`);
+  if (expect) {
+    const near = (a, b) => Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01 && Math.abs(a.z - b.z) < 0.01;
+    if (!near(r.end0, expect.end0)) errs.push(`end0 (${r.end0.x.toFixed(3)},${r.end0.y.toFixed(3)},${r.end0.z.toFixed(3)})`);
+    if (!near(r.end1, expect.end1)) errs.push(`end1 (${r.end1.x.toFixed(3)},${r.end1.y.toFixed(3)},${r.end1.z.toFixed(3)})`);
+  }
+  if (errs.length) failures.push({ name, errors: errs });
+  else passCount++;
+}
+// Symmetric (verified via prototype): theta=90 (LP-pair line), centre inboard of
+// the LPs at x=-6 (NOT dragged to x=0), min-length governs zB=sqrt(2^2-1.384^2)=1.443.
+runHangingBeamTest('shb-symmetric',
+  { x: -6, y: -3, z: 0 }, { x: -6, y: 3, z: 0 }, 5, 5, { x: 0, y: 0 }, Math.sqrt(45), 5, 45, 2,
+  { end0: { x: -4.709, y: -2.5, z: 1.443 }, end1: { x: -4.709, y: 2.5, z: 1.443 } });
+// Offset COG (hook at (1.5,0.8), full-precision shares): beam shifts toward the
+// heavier LP; still fixed length and balanced.
+runHangingBeamTest('shb-offset',
+  { x: -6, y: -3, z: 0 }, { x: -6, y: 3, z: 0 }, 2.4239, 5.0776, { x: 1.5, y: 0.8 }, 8.4077, 5, 45, 2,
+  { end0: { x: -4.691, y: -2.369, z: 1.467 }, end1: { x: -4.691, y: 2.631, z: 1.467 } });
+// Clean asymmetric (property-only): converges, fixed length, balanced, near its LPs.
+runHangingBeamTest('shb-asymmetric',
+  { x: -6, y: -3, z: 0 }, { x: -6, y: 3, z: 0 }, 3, 7, { x: 0, y: 0 }, Math.sqrt(45), 5, 45, 2, null);
+
 // === 1. DIRECT (4-leg) ===
 const directCalc = (s, c) => CalcDirect.calculate(s, c);
 

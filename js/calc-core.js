@@ -429,6 +429,83 @@ const CalcCore = (() => {
   }
 
   /**
+   * Solve a fixed-length spreader beam's free-hanging equilibrium pose.
+   * The beam (rigid, horizontal, length `length`, axis free to yaw) carries its
+   * two LPs via bottom slings and hangs from `hook` (over the total COG, height
+   * `H`) via two top slings. A rigid bar loaded only at its two ends carries a
+   * net end force along the bar, so each end's top and bottom vertical share =
+   * that LP's load `w_i`. Solve centre (cx,cy) + yaw (th) so the beam's net
+   * horizontal force is zero (h_a + h_b = 0 and h_a parallel to the bar) via a
+   * damped Newton iteration seeded from the sub-COG / LP-pair line. Beam height
+   * (zB) is set by the min bottom-sling angle AND the min bottom-sling length
+   * (a MINIMUM — raises the beam, never shrinks it).
+   * See docs/superpowers/specs/2026-07-15-parallel-fixed-length-beams-design.md §4-§6.
+   */
+  function solveHangingBeam(lpA, lpB, wA, wB, hook, H, length, minAngleRad, minSling) {
+    const half = length / 2;
+    const tan = Math.tan(minAngleRad);
+    const W = wA + wB;
+    const subx = (W > 1e-9) ? (wA * lpA.x + wB * lpB.x) / W : (lpA.x + lpB.x) / 2;
+    const suby = (W > 1e-9) ? (wA * lpA.y + wB * lpB.y) / W : (lpA.y + lpB.y) / 2;
+    let cx = subx, cy = suby, th = Math.atan2(lpB.y - lpA.y, lpB.x - lpA.x);
+
+    const endsOf = (cx, cy, th) => {
+      const ux = Math.cos(th), uy = Math.sin(th);
+      return {
+        ea: { x: cx - ux * half, y: cy - uy * half },
+        eb: { x: cx + ux * half, y: cy + uy * half },
+        ux, uy
+      };
+    };
+    const zBof = (ea, eb) => {
+      const req = (e, lp) => {
+        const hd = Math.hypot(e.x - lp.x, e.y - lp.y);
+        const za = lp.z + hd * tan;
+        const zl = (minSling > hd) ? lp.z + Math.sqrt(Math.max(0, minSling * minSling - hd * hd)) : lp.z;
+        return Math.max(za, zl);
+      };
+      return Math.max(req(ea, lpA), req(eb, lpB));
+    };
+    const residual = (cx, cy, th) => {
+      const { ea, eb, ux, uy } = endsOf(cx, cy, th);
+      const z = zBof(ea, eb);
+      const hvec = (e, lp, w) => {
+        const dzTop = H - z, dzBot = z - lp.z;
+        return {
+          x: w * ((hook.x - e.x) / dzTop + (lp.x - e.x) / dzBot),
+          y: w * ((hook.y - e.y) / dzTop + (lp.y - e.y) / dzBot)
+        };
+      };
+      const ha = hvec(ea, lpA, wA), hb = hvec(eb, lpB, wB);
+      return [ha.x + hb.x, ha.y + hb.y, ux * ha.y - uy * ha.x];
+    };
+
+    let converged = false;
+    const damp = 0.6, eps = 1e-6;
+    for (let it = 0; it < 80; it++) {
+      const r = residual(cx, cy, th);
+      if (Math.hypot(r[0], r[1], r[2]) < 1e-7) { converged = true; break; }
+      const r1 = residual(cx + eps, cy, th), r2 = residual(cx, cy + eps, th), r3 = residual(cx, cy, th + eps);
+      const J = [
+        [(r1[0] - r[0]) / eps, (r2[0] - r[0]) / eps, (r3[0] - r[0]) / eps],
+        [(r1[1] - r[1]) / eps, (r2[1] - r[1]) / eps, (r3[1] - r[1]) / eps],
+        [(r1[2] - r[2]) / eps, (r2[2] - r[2]) / eps, (r3[2] - r[2]) / eps]
+      ];
+      const Ji = mat3x3Inverse(J);
+      if (!Ji) break;   // singular Jacobian — stop; caller flags non-convergence
+      const d = [
+        -(Ji[0][0] * r[0] + Ji[0][1] * r[1] + Ji[0][2] * r[2]),
+        -(Ji[1][0] * r[0] + Ji[1][1] * r[1] + Ji[1][2] * r[2]),
+        -(Ji[2][0] * r[0] + Ji[2][1] * r[1] + Ji[2][2] * r[2])
+      ];
+      cx += damp * d[0]; cy += damp * d[1]; th += damp * d[2];
+    }
+    const { ea, eb } = endsOf(cx, cy, th);
+    const z = zBof(ea, eb);
+    return { end0: { x: ea.x, y: ea.y, z }, end1: { x: eb.x, y: eb.y, z }, converged };
+  }
+
+  /**
    * Compute vertical load from raw tension and endpoint geometry.
    * Avoids rounding error from using rounded angles.
    */
@@ -601,6 +678,6 @@ const CalcCore = (() => {
     LOAD_SHARING_FACTORS,
     getOrientationAxis,
     computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling,
-    computeBeamEndPair, fixedBeamEnds
+    computeBeamEndPair, fixedBeamEnds, solveHangingBeam
   };
 })();
