@@ -187,6 +187,45 @@ runReactionsTest('reactions-centred', _rectReac, { x: 0, y: 0 }, 20, [5, 5, 5, 5
 runReactionsTest('reactions-perp-offset', _rectReac, { x: 0, y: 1.5 }, 100, [6.25, 6.25, 43.75, 43.75]);
 runReactionsTest('reactions-onaxis-offset', _rectReac, { x: 2, y: 0 }, 20, null);
 
+// === CalcCore.fixedBeamEnds ===
+function runFixedBeamEndsTest(name, lpA, lpB, wA, wB, subCOG, length, expect) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcCore.fixedBeamEnds(lpA, lpB, wA, wB, subCOG, length); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const dx = r.end1.x - r.end0.x, dy = r.end1.y - r.end0.y;
+  const gotLen = Math.sqrt(dx * dx + dy * dy);
+  if (Math.abs(gotLen - length) > 1e-6) errs.push(`length ${gotLen.toFixed(4)} != ${length}`);
+  const W = wA + wB;
+  if (W > 1e-9) {
+    const avgx = (wA * r.end0.x + wB * r.end1.x) / W;
+    const avgy = (wA * r.end0.y + wB * r.end1.y) / W;
+    if (Math.abs(avgx - subCOG.x) > 1e-6 || Math.abs(avgy - subCOG.y) > 1e-6)
+      errs.push(`end-weighted avg (${avgx.toFixed(3)},${avgy.toFixed(3)}) != subCOG (${subCOG.x},${subCOG.y})`);
+  }
+  if (expect) {
+    if (Math.abs(r.end0.x - expect.end0.x) > 1e-4 || Math.abs(r.end0.y - expect.end0.y) > 1e-4)
+      errs.push(`end0 (${r.end0.x.toFixed(3)},${r.end0.y.toFixed(3)}) != (${expect.end0.x},${expect.end0.y})`);
+    if (Math.abs(r.end1.x - expect.end1.x) > 1e-4 || Math.abs(r.end1.y - expect.end1.y) > 1e-4)
+      errs.push(`end1 (${r.end1.x.toFixed(3)},${r.end1.y.toFixed(3)}) != (${expect.end1.x},${expect.end1.y})`);
+  }
+  if (errs.length) failures.push({ name, errors: errs });
+  else passCount++;
+}
+runFixedBeamEndsTest('fbe-symmetric',
+  { x: -3, y: 0 }, { x: 3, y: 0 }, 5, 5, { x: 0, y: 0 }, 4,
+  { end0: { x: -2, y: 0 }, end1: { x: 2, y: 0 } });
+runFixedBeamEndsTest('fbe-offset-x',
+  { x: 0, y: 0 }, { x: 6, y: 0 }, 3, 7, { x: 4.2, y: 0 }, 5,
+  { end0: { x: 0.7, y: 0 }, end1: { x: 5.7, y: 0 } });
+runFixedBeamEndsTest('fbe-offset-y',
+  { x: 0, y: 0 }, { x: 0, y: 6 }, 3, 7, { x: 0, y: 4.2 }, 5,
+  { end0: { x: 0, y: 0.7 }, end1: { x: 0, y: 5.7 } });
+runFixedBeamEndsTest('fbe-zero-share',
+  { x: -2, y: 0 }, { x: 2, y: 0 }, 0, 0, { x: 0, y: 0 }, 4,
+  { end0: { x: -2, y: 0 }, end1: { x: 2, y: 0 } });
+
 // === 1. DIRECT (4-leg) ===
 const directCalc = (s, c) => CalcDirect.calculate(s, c);
 

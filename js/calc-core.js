@@ -395,6 +395,40 @@ const CalcCore = (() => {
   }
 
   /**
+   * Fixed-length beam end placement for a 2-LP group.
+   * The beam is a rigid bar of `length`, axis along the LP-pair line, positioned
+   * so it hangs plumb under a pick over `subCOG`. A rigid bar loaded only at its
+   * two ends carries a net force along the bar, so each middle sling carries its
+   * own end's load; for the two middle thrusts to cancel the pick must sit over
+   * the load-weighted average of the ENDS, giving
+   *   C = subCOG - u * (length/2) * (wB - wA) / (wA + wB)
+   * with u the unit vector from lpA to lpB. Returns plan (x,y); caller sets z.
+   * end0 is on the lpA side, end1 on the lpB side.
+   * See docs/superpowers/specs/2026-07-14-cascade-fixed-length-slave-beams-design.md §3.
+   */
+  function fixedBeamEnds(lpA, lpB, wA, wB, subCOG, length) {
+    const dx = lpB.x - lpA.x, dy = lpB.y - lpA.y;
+    const axisLen = Math.sqrt(dx * dx + dy * dy);
+    const half = length / 2;
+    if (axisLen < 1e-9) {
+      return { end0: { x: subCOG.x, y: subCOG.y }, end1: { x: subCOG.x, y: subCOG.y } };
+    }
+    const ux = dx / axisLen, uy = dy / axisLen;
+    const W = wA + wB;
+    let cx, cy;
+    if (W < 1e-9) {
+      cx = (lpA.x + lpB.x) / 2; cy = (lpA.y + lpB.y) / 2;
+    } else {
+      const shift = half * (wB - wA) / W;
+      cx = subCOG.x - ux * shift; cy = subCOG.y - uy * shift;
+    }
+    return {
+      end0: { x: cx - ux * half, y: cy - uy * half },
+      end1: { x: cx + ux * half, y: cy + uy * half }
+    };
+  }
+
+  /**
    * Compute vertical load from raw tension and endpoint geometry.
    * Avoids rounding error from using rounded angles.
    */
@@ -567,6 +601,6 @@ const CalcCore = (() => {
     LOAD_SHARING_FACTORS,
     getOrientationAxis,
     computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling,
-    computeBeamEndPair
+    computeBeamEndPair, fixedBeamEnds
   };
 })();
