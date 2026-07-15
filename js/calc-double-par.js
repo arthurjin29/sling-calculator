@@ -41,7 +41,7 @@ window.CalcDoublePar = (() => {
     //       hook height and the hook height depends on the ends, so iterate. ──
     const hookXY = { x: cog.x, y: cog.y };
     let hookZ = Math.max(...liftingPoints.map(lp => lp.z + C.horizontalDist(lp, hookXY) * Math.tan(minAngleRad)));
-    let beamA1, beamA2, beamB1, beamB2, convergedA = true, convergedB = true;
+    let beamA1, beamA2, beamB1, beamB2, convergedA = true, convergedB = true, hookConverged = false;
     for (let outer = 0; outer < 12; outer++) {
       const rA = C.solveHangingBeam(groupALPs[0], groupALPs[1], wA0, wA1, hookXY, hookZ, beamLengthA, minAngleRad, minSlingLen);
       const rB = C.solveHangingBeam(groupBLPs[0], groupBLPs[1], wB0, wB1, hookXY, hookZ, beamLengthB, minAngleRad, minSlingLen);
@@ -49,7 +49,7 @@ window.CalcDoublePar = (() => {
       convergedA = rA.converged; convergedB = rB.converged;
       const ends = [beamA1, beamA2, beamB1, beamB2];
       const newHookZ = Math.max(...ends.map(e => e.z + C.horizontalDist(e, hookXY) * Math.tan(minAngleRad)));
-      if (Math.abs(newHookZ - hookZ) < 1e-4) { hookZ = newHookZ; break; }
+      if (Math.abs(newHookZ - hookZ) < 1e-4) { hookZ = newHookZ; hookConverged = true; break; }
       hookZ = newHookZ;
     }
     const hook = { x: cog.x, y: cog.y, z: hookZ };
@@ -190,7 +190,7 @@ window.CalcDoublePar = (() => {
         cogOutsidePolygon,
         negativeTension,
         topSlingAngleLow,
-        beamEquilibriumNotConverged: !convergedA || !convergedB,
+        beamEquilibriumNotConverged: !convergedA || !convergedB || !hookConverged,
         liftBeamBendingNotChecked: false
       }
     };

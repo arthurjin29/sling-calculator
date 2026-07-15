@@ -974,6 +974,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (warnings.liftBeamBendingNotChecked) {
       msgs.push('Lifting beam bending capacity has NOT been checked — verify the beam can safely support the calculated loads and span.');
     }
+    if (warnings.beamEquilibriumNotConverged) {
+      msgs.push('A spreader beam did not reach a balanced hanging position — the rig geometry for this configuration is UNRELIABLE. Verify the beam length, lifting-point positions, and COG.');
+    }
     if (warnings.minAngleBelowAmber) {
       msgs.push({ text: 'Minimum sling angle is below 45\u00B0', amber: true });
     }
