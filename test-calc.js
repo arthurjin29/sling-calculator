@@ -536,25 +536,28 @@ runTest('dbl-cas-large-master', doubleCasCalc,
 
 // Fixed-length slave beams: actual 2nd-lvl beam length == entered length,
 // and the slave beam hangs plumb (net horizontal force on the beam ~ 0).
+// Net horizontal force on a slave beam = Σ over its ends of Σ over the slings
+// attached to that end of tension·unit(end→other). Match by LABEL (robust to
+// coordinate rounding) and count matches so a mislabel can't pass vacuously.
 function beamHorizNet(res, endLabels) {
   const slings = res.tiers.flatMap(t => t.slings);
-  let fx = 0, fy = 0;
-  for (const end of endLabels) {
-    const P = res.intermediatePoints.find(p => p.label === end);
+  let fx = 0, fy = 0, matched = 0;
+  for (const label of endLabels) {
     for (const s of slings) {
-      const atEnd =
-        (Math.abs(s.from.x - P.x) < 1e-6 && Math.abs(s.from.y - P.y) < 1e-6 && Math.abs(s.from.z - P.z) < 1e-6) ? s.to :
-        (Math.abs(s.to.x - P.x) < 1e-6 && Math.abs(s.to.y - P.y) < 1e-6 && Math.abs(s.to.z - P.z) < 1e-6) ? s.from : null;
-      if (!atEnd) continue;
-      const dx = atEnd.x - P.x, dy = atEnd.y - P.y, dz = atEnd.z - P.z;
+      let endPt = null, other = null;
+      if (s.from.label === label) { endPt = s.from; other = s.to; }
+      else if (s.to.label === label) { endPt = s.to; other = s.from; }
+      else continue;
+      matched++;
+      const dx = other.x - endPt.x, dy = other.y - endPt.y, dz = other.z - endPt.z;
       const L = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (L < 1e-9) continue;
       fx += s.tension * dx / L; fy += s.tension * dy / L;
     }
   }
-  return Math.sqrt(fx * fx + fy * fy);
+  return { net: Math.sqrt(fx * fx + fy * fy), matched };
 }
-function runFixedSlaveTest(name, shared, config, expectBeamLen) {
+function runFixedSlaveTest(name, shared, config, expectBeamLen, expectEndZ) {
   totalTests++;
   const errs = [];
   let res;
@@ -564,17 +567,27 @@ function runFixedSlaveTest(name, shared, config, expectBeamLen) {
   const beamB = res.beams.find(b => b.name === '2nd Lvl Beam B');
   if (Math.abs(beamA.length - expectBeamLen) > 0.01) errs.push(`beamA ${beamA.length} != ${expectBeamLen}`);
   if (Math.abs(beamB.length - expectBeamLen) > 0.01) errs.push(`beamB ${beamB.length} != ${expectBeamLen}`);
-  const netA = beamHorizNet(res, ['2nd A End 1', '2nd A End 2']);
-  if (netA > 0.02) errs.push(`beamA net horizontal ${netA.toFixed(4)} not ~0`);
+  // Both slave beams must hang plumb (net horizontal ~ 0), each with 4 slings matched.
+  const a = beamHorizNet(res, ['2nd A End 1', '2nd A End 2']);
+  const b = beamHorizNet(res, ['2nd B End 1', '2nd B End 2']);
+  if (a.matched !== 4) errs.push(`beamA matched ${a.matched} slings != 4`);
+  if (b.matched !== 4) errs.push(`beamB matched ${b.matched} slings != 4`);
+  if (a.net > 0.02) errs.push(`beamA net horizontal ${a.net.toFixed(4)} not ~0`);
+  if (b.net > 0.02) errs.push(`beamB net horizontal ${b.net.toFixed(4)} not ~0`);
+  // Optional hand-calculated beam height (both slave ends share one z).
+  if (expectEndZ != null && Math.abs(beamA.endA.z - expectEndZ) > 0.01)
+    errs.push(`beamA endA.z ${beamA.endA.z} != ${expectEndZ}`);
   if (errs.length) failures.push({ name, errors: errs });
   else passCount++;
 }
 // Pair spacing 6 m < 5 m beam is inside the min-bottom-sling clamp zone, where
 // the OLD computeBeamEndPair shrank the beam to ~4 m — so these discriminate the
 // fix. New code must keep the full 5 m and stay horizontally balanced.
+// Symmetric hand-check: pair along y at x=-6, ends at y=±2.5 → each bottom sling
+// hd=0.5 from its LP; min-length (2) governs → zBeam = sqrt(2^2 - 0.5^2) = 1.9365.
 runFixedSlaveTest('dbl-cas-fixed-len-symmetric',
   { liftingPoints: rectLPs(12, 6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
-  { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5);
+  { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5, 1.9365);
 runFixedSlaveTest('dbl-cas-fixed-len-offset',
   { liftingPoints: rectLPs(12, 6), cog: { x: 1.5, y: 0.8, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5);

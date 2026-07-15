@@ -5,9 +5,10 @@
  * (its sub-COG), not the geometric midpoint of its LP pair. The Main Beam's
  * sling pick points sit inboard, over the two sub-COGs, and the hook (over
  * the total COG) lands collinear with those two picks — so the top slings
- * balance horizontally with no lean. Slave beam ends sit on the direct sling
- * paths from LP to Main-Beam pick point, using the same computeBeamEndPair
- * logic as the parallel config.
+ * balance horizontally with no lean. Each 2nd-level beam is a fixed-length bar
+ * (the entered slaveLength): its ends are placed via CalcCore.fixedBeamEnds so
+ * the beam hangs plumb (pick over the load-weighted average of the ends), and
+ * the bottom slings pull in / splay out to reach those fixed ends.
  *
  *   Top:     2 slings (hook → Main-Beam pick points)
  *   Middle:  4 slings (slave beam ends → Main-Beam pick points)
