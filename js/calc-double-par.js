@@ -29,20 +29,30 @@ window.CalcDoublePar = (() => {
     const groupALabels = groupAIdxs.map(i => 'LP' + (i + 1));
     const groupBLabels = groupBIdxs.map(i => 'LP' + (i + 1));
 
-    // ── 2. Compute hook from 4-leg direct geometry ──
+    // ── 2. Per-LP vertical shares (min-norm rigid-body reactions) ──
+    const reactions = C.computeSupportReactions(liftingPoints, cog, totalLoad);
+    const wA0 = Math.max(0, reactions[groupAIdxs[0]]);
+    const wA1 = Math.max(0, reactions[groupAIdxs[1]]);
+    const wB0 = Math.max(0, reactions[groupBIdxs[0]]);
+    const wB1 = Math.max(0, reactions[groupBIdxs[1]]);
+
+    // ── 3. Fixed-length hanging beams. Hook is over the total COG; its height is
+    //       set by the min top-sling angle over the beam ends. Poses depend on the
+    //       hook height and the hook height depends on the ends, so iterate. ──
     const hookXY = { x: cog.x, y: cog.y };
-    const hDists = liftingPoints.map(lp => C.horizontalDist(lp, hookXY));
-    const requiredHookZs = liftingPoints.map((lp, i) => lp.z + hDists[i] * Math.tan(minAngleRad));
-    const hook = { x: cog.x, y: cog.y, z: Math.max(...requiredHookZs) };
-
-    // ── 3. Place beam ends on direct sling paths ──
-    const pairA = C.computeBeamEndPair(groupALPs[0], groupALPs[1], hook, beamLengthA, minSlingLen);
-    const pairB = C.computeBeamEndPair(groupBLPs[0], groupBLPs[1], hook, beamLengthB, minSlingLen);
-
-    const beamA1 = pairA.end0;
-    const beamA2 = pairA.end1;
-    const beamB1 = pairB.end0;
-    const beamB2 = pairB.end1;
+    let hookZ = Math.max(...liftingPoints.map(lp => lp.z + C.horizontalDist(lp, hookXY) * Math.tan(minAngleRad)));
+    let beamA1, beamA2, beamB1, beamB2, convergedA = true, convergedB = true;
+    for (let outer = 0; outer < 12; outer++) {
+      const rA = C.solveHangingBeam(groupALPs[0], groupALPs[1], wA0, wA1, hookXY, hookZ, beamLengthA, minAngleRad, minSlingLen);
+      const rB = C.solveHangingBeam(groupBLPs[0], groupBLPs[1], wB0, wB1, hookXY, hookZ, beamLengthB, minAngleRad, minSlingLen);
+      beamA1 = rA.end0; beamA2 = rA.end1; beamB1 = rB.end0; beamB2 = rB.end1;
+      convergedA = rA.converged; convergedB = rB.converged;
+      const ends = [beamA1, beamA2, beamB1, beamB2];
+      const newHookZ = Math.max(...ends.map(e => e.z + C.horizontalDist(e, hookXY) * Math.tan(minAngleRad)));
+      if (Math.abs(newHookZ - hookZ) < 1e-4) { hookZ = newHookZ; break; }
+      hookZ = newHookZ;
+    }
+    const hook = { x: cog.x, y: cog.y, z: hookZ };
 
     // ── 4. COG polygon validation ──
     const cogOutsidePolygon = !C.pointInPolygon2D(cog, liftingPoints);
@@ -81,26 +91,20 @@ window.CalcDoublePar = (() => {
       ));
     }
 
-    // ── 7. Tensions ──
-
-    // Top tier: 4-sling load distribution
-    const topTensions = C.calcLoadDistribution(allBeamEnds, hook, totalLoad);
-    for (let i = 0; i < 4; i++) topSlings[i].tension = C.round4(topTensions[i]);
-
-    // Bottom tier: each bottom sling carries the vertical load of its beam end
-    const beamEndVLoads = [];
+    // ── 7. Tensions — per-beam determinate: each end's top vertical component is
+    //       that LP's load share (replaces the 4-leg calcLoadDistribution). ──
+    const endW = [wA0, wA1, wB0, wB1];
     for (let i = 0; i < 4; i++) {
-      beamEndVLoads.push(C.computeVerticalLoad(topTensions[i], allBeamEnds[i], hook));
+      const be = allBeamEnds[i], w = endW[i];
+      const topLen = C.dist3D(be, hook);
+      const topVd = hook.z - be.z;
+      topSlings[i].tension = C.round4(topVd > 1e-9 ? w * topLen / topVd : w);
     }
     for (let i = 0; i < 4; i++) {
-      const s = bottomSlings[i];
+      const s = bottomSlings[i], w = endW[i];
       const len = C.dist3D(s.from, s.to);
       const vd = Math.abs(s.to.z - s.from.z);
-      if (len < 0.0001 || vd < 0.0001) {
-        s.tension = C.round4(beamEndVLoads[i]);
-      } else {
-        s.tension = C.round4(beamEndVLoads[i] * len / vd);
-      }
+      s.tension = C.round4((len < 0.0001 || vd < 0.0001) ? w : w * len / vd);
     }
 
     // ── 8. Vertical loads ──
@@ -186,6 +190,7 @@ window.CalcDoublePar = (() => {
         cogOutsidePolygon,
         negativeTension,
         topSlingAngleLow,
+        beamEquilibriumNotConverged: !convergedA || !convergedB,
         liftBeamBendingNotChecked: false
       }
     };

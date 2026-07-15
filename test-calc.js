@@ -534,6 +534,64 @@ runTest('dbl-par-long-bottom-sling', doubleParCalc,
   { liftingPoints: rectLPs(10, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { beamLengthA: 3, beamLengthB: 3, orientationA: 'widthwise', orientationB: 'widthwise', bottomSlingLen: 5 });
 
+// Fixed-length parallel beams: length honoured + each beam hangs plumb + hook
+// stays over the total COG. Match slings by label; count matches (no vacuous green).
+function parBeamHorizNet(res, endLabels) {
+  const slings = res.tiers.flatMap(t => t.slings);
+  let fx = 0, fy = 0, matched = 0;
+  for (const label of endLabels) {
+    for (const s of slings) {
+      let endPt = null, other = null;
+      if (s.from.label === label) { endPt = s.from; other = s.to; }
+      else if (s.to.label === label) { endPt = s.to; other = s.from; }
+      else continue;
+      matched++;
+      const dx = other.x - endPt.x, dy = other.y - endPt.y, dz = other.z - endPt.z;
+      const L = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (L < 1e-9) continue;
+      fx += s.tension * dx / L; fy += s.tension * dy / L;
+    }
+  }
+  return { net: Math.sqrt(fx * fx + fy * fy), matched };
+}
+function runFixedParTest(name, shared, config, expectBeamLen) {
+  totalTests++;
+  const errs = [];
+  let res;
+  try { res = doubleParCalc(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  if (res.warnings.beamEquilibriumNotConverged) errs.push('did not converge');
+  const beamA = res.beams.find(b => b.name === 'Beam A');
+  const beamB = res.beams.find(b => b.name === 'Beam B');
+  if (Math.abs(beamA.length - expectBeamLen) > 0.01) errs.push(`beamA ${beamA.length} != ${expectBeamLen}`);
+  if (Math.abs(beamB.length - expectBeamLen) > 0.01) errs.push(`beamB ${beamB.length} != ${expectBeamLen}`);
+  const a = parBeamHorizNet(res, ['Beam A End 1', 'Beam A End 2']);
+  const b = parBeamHorizNet(res, ['Beam B End 1', 'Beam B End 2']);
+  if (a.matched !== 4) errs.push(`beamA matched ${a.matched} != 4`);
+  if (b.matched !== 4) errs.push(`beamB matched ${b.matched} != 4`);
+  if (a.net > 0.03) errs.push(`beamA net horizontal ${a.net.toFixed(4)} not ~0`);
+  if (b.net > 0.03) errs.push(`beamB net horizontal ${b.net.toFixed(4)} not ~0`);
+  // Hook stays over the total COG: the 4 top slings' horizontal resultant ~ 0.
+  const top = res.tiers.find(t => t.name === 'Top Slings').slings;
+  let hx = 0, hy = 0;
+  for (const s of top) {
+    const dx = s.from.x - s.to.x, dy = s.from.y - s.to.y, dz = s.from.z - s.to.z;
+    const L = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    hx += s.tension * dx / L; hy += s.tension * dy / L;
+  }
+  if (Math.sqrt(hx * hx + hy * hy) > 0.05) errs.push(`hook horizontal resultant ${Math.sqrt(hx*hx+hy*hy).toFixed(4)} not ~0`);
+  if (errs.length) failures.push({ name, errors: errs });
+  else passCount++;
+}
+// Pair spacing 6 m < 5 m beam is the shrink zone where the old computeBeamEndPair
+// derived a shorter beam — these discriminate the fix.
+runFixedParTest('dbl-par-fixed-len-symmetric',
+  { liftingPoints: rectLPs(12, 6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLengthA: 5, beamLengthB: 5, orientationA: 'widthwise', orientationB: 'widthwise', bottomSlingLen: 2 }, 5);
+runFixedParTest('dbl-par-fixed-len-offset',
+  { liftingPoints: rectLPs(12, 6), cog: { x: 1.5, y: 0.8, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLengthA: 5, beamLengthB: 5, orientationA: 'widthwise', orientationB: 'widthwise', bottomSlingLen: 2 }, 5);
+
 
 // === 6. DOUBLE SPREADER CASCADING ===
 const doubleCasCalc = (s, c) => CalcDoubleCas.calculate(s, c);

@@ -484,6 +484,7 @@ const CalcCore = (() => {
     const damp = 0.6, eps = 1e-6;
     for (let it = 0; it < 80; it++) {
       const r = residual(cx, cy, th);
+      if (!isFinite(r[0] + r[1] + r[2])) break;
       if (Math.hypot(r[0], r[1], r[2]) < 1e-7) { converged = true; break; }
       const r1 = residual(cx + eps, cy, th), r2 = residual(cx, cy + eps, th), r3 = residual(cx, cy, th + eps);
       const J = [
