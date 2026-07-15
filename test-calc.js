@@ -534,6 +534,48 @@ runTest('dbl-cas-large-master', doubleCasCalc,
   { liftingPoints: squareLPs(4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 10 },
   { masterLength: 12, slaveLengthA: 2, slaveLengthB: 2, bottomSlingLen: 2 });
 
+// Fixed-length slave beams: actual 2nd-lvl beam length == entered length,
+// and the slave beam hangs plumb (net horizontal force on the beam ~ 0).
+function beamHorizNet(res, endLabels) {
+  const slings = res.tiers.flatMap(t => t.slings);
+  let fx = 0, fy = 0;
+  for (const end of endLabels) {
+    const P = res.intermediatePoints.find(p => p.label === end);
+    for (const s of slings) {
+      const atEnd =
+        (Math.abs(s.from.x - P.x) < 1e-6 && Math.abs(s.from.y - P.y) < 1e-6 && Math.abs(s.from.z - P.z) < 1e-6) ? s.to :
+        (Math.abs(s.to.x - P.x) < 1e-6 && Math.abs(s.to.y - P.y) < 1e-6 && Math.abs(s.to.z - P.z) < 1e-6) ? s.from : null;
+      if (!atEnd) continue;
+      const dx = atEnd.x - P.x, dy = atEnd.y - P.y, dz = atEnd.z - P.z;
+      const L = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (L < 1e-9) continue;
+      fx += s.tension * dx / L; fy += s.tension * dy / L;
+    }
+  }
+  return Math.sqrt(fx * fx + fy * fy);
+}
+function runFixedSlaveTest(name, shared, config, expectBeamLen) {
+  totalTests++;
+  const errs = [];
+  let res;
+  try { res = doubleCasCalc(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const beamA = res.beams.find(b => b.name === '2nd Lvl Beam A');
+  const beamB = res.beams.find(b => b.name === '2nd Lvl Beam B');
+  if (Math.abs(beamA.length - expectBeamLen) > 0.01) errs.push(`beamA ${beamA.length} != ${expectBeamLen}`);
+  if (Math.abs(beamB.length - expectBeamLen) > 0.01) errs.push(`beamB ${beamB.length} != ${expectBeamLen}`);
+  const netA = beamHorizNet(res, ['2nd A End 1', '2nd A End 2']);
+  if (netA > 0.02) errs.push(`beamA net horizontal ${netA.toFixed(4)} not ~0`);
+  if (errs.length) failures.push({ name, errors: errs });
+  else passCount++;
+}
+runFixedSlaveTest('dbl-cas-fixed-len-symmetric',
+  { liftingPoints: rectLPs(12, 8), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5);
+runFixedSlaveTest('dbl-cas-fixed-len-offset',
+  { liftingPoints: rectLPs(12, 8), cog: { x: 1.5, y: 0.8, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5);
+
 // 94: Trapezoid
 runTest('dbl-cas-trapezoid', doubleCasCalc,
   { liftingPoints: trapezoidLPs(3, 7, 5), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 18 },

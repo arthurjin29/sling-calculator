@@ -88,53 +88,45 @@ window.CalcDoubleCas = (() => {
     const pickAxy = { x: subCogA.x, y: subCogA.y };
     const pickBxy = { x: subCogB.x, y: subCogB.y };
 
-    // Master beam Z: each master end acts as "hook" for its LP pair.
-    // Must be high enough for min angle from each LP in its group.
-    const hDistA0 = C.horizontalDist(groupALPs[0], pickAxy);
-    const hDistA1 = C.horizontalDist(groupALPs[1], pickAxy);
-    const hDistB0 = C.horizontalDist(groupBLPs[0], pickBxy);
-    const hDistB1 = C.horizontalDist(groupBLPs[1], pickBxy);
+    // ── 3. Vertical load shares per LP (clamped — same basis as subCogOf) ──
+    const wA0 = Math.max(0, reactions[groupAIdxs[0]]);
+    const wA1 = Math.max(0, reactions[groupAIdxs[1]]);
+    const wB0 = Math.max(0, reactions[groupBIdxs[0]]);
+    const wB1 = Math.max(0, reactions[groupBIdxs[1]]);
 
-    const masterEndAz = Math.max(
-      groupALPs[0].z + hDistA0 * Math.tan(minAngleRad),
-      groupALPs[1].z + hDistA1 * Math.tan(minAngleRad)
+    // Fixed-length slave beam ends (plan positions; z set below). Each beam is a
+    // rigid bar of the entered length, axis along its LP-pair line, centred so it
+    // hangs plumb under its Main pick (pick over the end-weighted average).
+    const endsA = C.fixedBeamEnds(groupALPs[0], groupALPs[1], wA0, wA1, subCogA, slaveLengthA);
+    const endsB = C.fixedBeamEnds(groupBLPs[0], groupBLPs[1], wB0, wB1, subCogB, slaveLengthB);
+
+    // Slave beam height: raise the rigid horizontal beam until BOTH its bottom
+    // slings meet the min angle AND the min bottom-sling length. The entered
+    // "Bottom Sling Length" is a MINIMUM — lift the beam, never shrink it.
+    const zBeamOf = (lp0, e0, lp1, e1) => {
+      const req = (lp, e) => {
+        const hd = C.horizontalDist(lp, e);
+        const zAngle = lp.z + hd * Math.tan(minAngleRad);
+        const zLen = (minSlingLen > hd) ? lp.z + Math.sqrt(minSlingLen * minSlingLen - hd * hd) : lp.z;
+        return Math.max(zAngle, zLen);
+      };
+      return Math.max(req(lp0, e0), req(lp1, e1));
+    };
+    const zBA = zBeamOf(groupALPs[0], endsA.end0, groupALPs[1], endsA.end1);
+    const zBB = zBeamOf(groupBLPs[0], endsB.end0, groupBLPs[1], endsB.end1);
+
+    const slaveA1 = { ...endsA.end0, z: zBA };
+    const slaveA2 = { ...endsA.end1, z: zBA };
+    const slaveB1 = { ...endsB.end0, z: zBB };
+    const slaveB2 = { ...endsB.end1, z: zBB };
+
+    // Main pick height: raised so every middle sling (slave end → Main pick)
+    // meets the middle-lay target angle. Ends are fixed, so this is direct.
+    const midReqZ = (end, pickxy) => end.z + C.horizontalDist(end, pickxy) * Math.tan(middleAngleRad);
+    const masterZ = Math.max(
+      midReqZ(slaveA1, pickAxy), midReqZ(slaveA2, pickAxy),
+      midReqZ(slaveB1, pickBxy), midReqZ(slaveB2, pickBxy)
     );
-    const masterEndBz = Math.max(
-      groupBLPs[0].z + hDistB0 * Math.tan(minAngleRad),
-      groupBLPs[1].z + hDistB1 * Math.tan(minAngleRad)
-    );
-    // Both ends at same Z (it's a rigid beam)
-    let masterZ = Math.max(masterEndAz, masterEndBz);
-
-    // Iteratively raise masterZ until middle slings also meet min angle.
-    // Slave end positions depend on masterZ, and middle sling angles depend on both.
-    let slaveA1, slaveA2, slaveB1, slaveB2;
-    for (let iter = 0; iter < 20; iter++) {
-      const mEndA = { ...pickAxy, z: masterZ };
-      const mEndB = { ...pickBxy, z: masterZ };
-
-      const pairA = C.computeBeamEndPair(groupALPs[0], groupALPs[1], mEndA, slaveLengthA, minSlingLen);
-      const pairB = C.computeBeamEndPair(groupBLPs[0], groupBLPs[1], mEndB, slaveLengthB, minSlingLen);
-
-      slaveA1 = pairA.end0;
-      slaveA2 = pairA.end1;
-      slaveB1 = pairB.end0;
-      slaveB2 = pairB.end1;
-
-      // Check middle sling angles and compute required masterZ
-      const slaveEnds = [slaveA1, slaveA2, slaveB1, slaveB2];
-      const mEnds = [mEndA, mEndA, mEndB, mEndB];
-      let newMasterZ = masterZ;
-      for (let i = 0; i < 4; i++) {
-        const hd = C.horizontalDist(slaveEnds[i], mEnds[i]);
-        if (hd > 0.001) {
-          const requiredZ = slaveEnds[i].z + hd * Math.tan(middleAngleRad);
-          if (requiredZ > newMasterZ) newMasterZ = requiredZ;
-        }
-      }
-      if (newMasterZ - masterZ < 0.001) break;
-      masterZ = newMasterZ;
-    }
 
     const masterPicks = {
       pickA: { ...pickAxy, z: masterZ },
