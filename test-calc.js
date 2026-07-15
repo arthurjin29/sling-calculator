@@ -569,11 +569,14 @@ function runFixedSlaveTest(name, shared, config, expectBeamLen) {
   if (errs.length) failures.push({ name, errors: errs });
   else passCount++;
 }
+// Pair spacing 6 m < 5 m beam is inside the min-bottom-sling clamp zone, where
+// the OLD computeBeamEndPair shrank the beam to ~4 m — so these discriminate the
+// fix. New code must keep the full 5 m and stay horizontally balanced.
 runFixedSlaveTest('dbl-cas-fixed-len-symmetric',
-  { liftingPoints: rectLPs(12, 8), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { liftingPoints: rectLPs(12, 6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5);
 runFixedSlaveTest('dbl-cas-fixed-len-offset',
-  { liftingPoints: rectLPs(12, 8), cog: { x: 1.5, y: 0.8, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { liftingPoints: rectLPs(12, 6), cog: { x: 1.5, y: 0.8, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5);
 
 // 94: Trapezoid
