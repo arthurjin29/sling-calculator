@@ -31,6 +31,7 @@ window.CalcDoublePar = (() => {
 
     // ── 2. Per-LP vertical shares (min-norm rigid-body reactions) ──
     const reactions = C.computeSupportReactions(liftingPoints, cog, totalLoad);
+    const anyNegReaction = reactions.some(r => r < -1e-9);
     const wA0 = Math.max(0, reactions[groupAIdxs[0]]);
     const wA1 = Math.max(0, reactions[groupAIdxs[1]]);
     const wB0 = Math.max(0, reactions[groupBIdxs[0]]);
@@ -191,7 +192,8 @@ window.CalcDoublePar = (() => {
         negativeTension,
         topSlingAngleLow,
         beamEquilibriumNotConverged: !convergedA || !convergedB || !hookConverged,
-        liftBeamBendingNotChecked: false
+        liftBeamBendingNotChecked: false,
+        subCogFallback: anyNegReaction
       }
     };
   }

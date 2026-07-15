@@ -592,6 +592,32 @@ runFixedParTest('dbl-par-fixed-len-offset',
   { liftingPoints: rectLPs(12, 6), cog: { x: 1.5, y: 0.8, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { beamLengthA: 5, beamLengthB: 5, orientationA: 'widthwise', orientationB: 'widthwise', bottomSlingLen: 2 }, 5);
 
+// Negative min-norm reaction (COG outside the support kern but inside the hull):
+// subCogFallback must fire, no NaN, beams keep their fixed length via seed fallback.
+(function runNegShareParTest() {
+  totalTests++;
+  const errs = [];
+  let res;
+  try {
+    res = doubleParCalc(
+      { liftingPoints: rectLPs(12, 6), cog: { x: 4, y: 2, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+      { beamLengthA: 5, beamLengthB: 5, orientationA: 'widthwise', orientationB: 'widthwise', bottomSlingLen: 2 }
+    );
+  } catch (e) { failures.push({ name: 'dbl-par-neg-share', error: `EXCEPTION: ${e.message}` }); return; }
+  if (res.warnings.subCogFallback !== true) errs.push('subCogFallback did not fire for COG outside kern');
+  const slings = res.tiers.flatMap(t => t.slings);
+  for (const s of slings) {
+    if (!isFinite(s.length)) errs.push(`NaN sling length (${s.from.label}->${s.to.label})`);
+    if (!isFinite(s.tension)) errs.push(`NaN sling tension (${s.from.label}->${s.to.label})`);
+  }
+  for (const b of res.beams) {
+    if (!isFinite(b.length)) errs.push(`NaN beam length (${b.name})`);
+    else if (Math.abs(b.length - 5) > 0.01) errs.push(`${b.name} length ${b.length} != 5 (fixed length not preserved in fallback)`);
+  }
+  if (errs.length) failures.push({ name: 'dbl-par-neg-share', errors: errs });
+  else passCount++;
+})();
+
 
 // === 6. DOUBLE SPREADER CASCADING ===
 const doubleCasCalc = (s, c) => CalcDoubleCas.calculate(s, c);

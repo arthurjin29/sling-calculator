@@ -448,6 +448,7 @@ const CalcCore = (() => {
     const subx = (W > 1e-9) ? (wA * lpA.x + wB * lpB.x) / W : (lpA.x + lpB.x) / 2;
     const suby = (W > 1e-9) ? (wA * lpA.y + wB * lpB.y) / W : (lpA.y + lpB.y) / 2;
     let cx = subx, cy = suby, th = Math.atan2(lpB.y - lpA.y, lpB.x - lpA.x);
+    const cx0 = cx, cy0 = cy, th0 = th;
 
     const endsOf = (cx, cy, th) => {
       const ux = Math.cos(th), uy = Math.sin(th);
@@ -499,8 +500,10 @@ const CalcCore = (() => {
         -(Ji[1][0] * r[0] + Ji[1][1] * r[1] + Ji[1][2] * r[2]),
         -(Ji[2][0] * r[0] + Ji[2][1] * r[1] + Ji[2][2] * r[2])
       ];
+      if (!isFinite(d[0] + d[1] + d[2])) break;
       cx += damp * d[0]; cy += damp * d[1]; th += damp * d[2];
     }
+    if (!converged) { cx = cx0; cy = cy0; th = th0; }
     const { ea, eb } = endsOf(cx, cy, th);
     const z = zBof(ea, eb);
     return { end0: { x: ea.x, y: ea.y, z }, end1: { x: eb.x, y: eb.y, z }, converged };
