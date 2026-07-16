@@ -510,6 +510,82 @@ const CalcCore = (() => {
   }
 
   /**
+   * Solve the cascade Main beam's free-hang pose (fixed length `length`, axis free
+   * to yaw). Unlike solveHangingBeam, each end carries a whole sub-spreader via TWO
+   * middle slings — end A to sub-A ends eA0/eA1 (loads wA0/wA1), end B to sub-B ends
+   * eB0/eB1 (loads wB0/wB1) — plus one top sling up to `hook` (height H) that carries
+   * that side's total load. Solve centre (cx,cy) + yaw (th) so the beam's net
+   * horizontal force is zero and axial (damped Newton). Beam height z is raised so
+   * EVERY middle sling (pick → sub end) meets `middleAngleRad` — a floor, honoured on
+   * the actual slings, never the pick→sub-COG proxy. Returns the two ends + z.
+   */
+  function solveCascadeMainBeam(eA0, eA1, wA0, wA1, eB0, eB1, wB0, wB1, hook, H, length, middleAngleRad) {
+    const half = length / 2;
+    const tanMid = Math.tan(middleAngleRad);
+    const WA = wA0 + wA1, WB = wB0 + wB1, W = WA + WB;
+    const subAx = WA > 1e-9 ? (wA0 * eA0.x + wA1 * eA1.x) / WA : (eA0.x + eA1.x) / 2;
+    const subAy = WA > 1e-9 ? (wA0 * eA0.y + wA1 * eA1.y) / WA : (eA0.y + eA1.y) / 2;
+    const subBx = WB > 1e-9 ? (wB0 * eB0.x + wB1 * eB1.x) / WB : (eB0.x + eB1.x) / 2;
+    const subBy = WB > 1e-9 ? (wB0 * eB0.y + wB1 * eB1.y) / WB : (eB0.y + eB1.y) / 2;
+    let cx = W > 1e-9 ? (WA * subAx + WB * subBx) / W : (subAx + subBx) / 2;
+    let cy = W > 1e-9 ? (WA * subAy + WB * subBy) / W : (subAy + subBy) / 2;
+    let th = Math.atan2(subBy - subAy, subBx - subAx);
+    const cx0 = cx, cy0 = cy, th0 = th;
+
+    const endsOf = (cx, cy, th) => {
+      const ux = Math.cos(th), uy = Math.sin(th);
+      return { pa: { x: cx - ux * half, y: cy - uy * half }, pb: { x: cx + ux * half, y: cy + uy * half }, ux, uy };
+    };
+    const zOf = (pa, pb) => {
+      const req = (p, e) => e.z + Math.hypot(p.x - e.x, p.y - e.y) * tanMid;
+      return Math.max(req(pa, eA0), req(pa, eA1), req(pb, eB0), req(pb, eB1));
+    };
+    const residual = (cx, cy, th) => {
+      const { pa, pb, ux, uy } = endsOf(cx, cy, th);
+      const z = zOf(pa, pb);
+      const dzTop = H - z;
+      // Net horizontal at a pick = top sling (carries the side's total load Ws toward
+      // the hook) + the two middle slings (each carries its sub-end load toward eX).
+      const hvec = (p, e0, e1, w0, w1) => {
+        const Ws = w0 + w1, dz0 = z - e0.z, dz1 = z - e1.z;
+        return {
+          x: Ws * (hook.x - p.x) / dzTop + w0 * (e0.x - p.x) / dz0 + w1 * (e1.x - p.x) / dz1,
+          y: Ws * (hook.y - p.y) / dzTop + w0 * (e0.y - p.y) / dz0 + w1 * (e1.y - p.y) / dz1
+        };
+      };
+      const ha = hvec(pa, eA0, eA1, wA0, wA1), hb = hvec(pb, eB0, eB1, wB0, wB1);
+      return [ha.x + hb.x, ha.y + hb.y, ux * ha.y - uy * ha.x];
+    };
+
+    let converged = false;
+    const damp = 0.6, eps = 1e-6;
+    for (let it = 0; it < 80; it++) {
+      const r = residual(cx, cy, th);
+      if (!isFinite(r[0] + r[1] + r[2])) break;
+      if (Math.hypot(r[0], r[1], r[2]) < 1e-7) { converged = true; break; }
+      const r1 = residual(cx + eps, cy, th), r2 = residual(cx, cy + eps, th), r3 = residual(cx, cy, th + eps);
+      const J = [
+        [(r1[0] - r[0]) / eps, (r2[0] - r[0]) / eps, (r3[0] - r[0]) / eps],
+        [(r1[1] - r[1]) / eps, (r2[1] - r[1]) / eps, (r3[1] - r[1]) / eps],
+        [(r1[2] - r[2]) / eps, (r2[2] - r[2]) / eps, (r3[2] - r[2]) / eps]
+      ];
+      const Ji = mat3x3Inverse(J);
+      if (!Ji) break;
+      const d = [
+        -(Ji[0][0] * r[0] + Ji[0][1] * r[1] + Ji[0][2] * r[2]),
+        -(Ji[1][0] * r[0] + Ji[1][1] * r[1] + Ji[1][2] * r[2]),
+        -(Ji[2][0] * r[0] + Ji[2][1] * r[1] + Ji[2][2] * r[2])
+      ];
+      if (!isFinite(d[0] + d[1] + d[2])) break;
+      cx += damp * d[0]; cy += damp * d[1]; th += damp * d[2];
+    }
+    if (!converged) { cx = cx0; cy = cy0; th = th0; }
+    const { pa, pb } = endsOf(cx, cy, th);
+    const z = zOf(pa, pb);
+    return { end0: { x: pa.x, y: pa.y, z }, end1: { x: pb.x, y: pb.y, z }, z, converged };
+  }
+
+  /**
    * Compute vertical load from raw tension and endpoint geometry.
    * Avoids rounding error from using rounded angles.
    */
@@ -682,6 +758,6 @@ const CalcCore = (() => {
     LOAD_SHARING_FACTORS,
     getOrientationAxis,
     computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling,
-    computeBeamEndPair, fixedBeamEnds, solveHangingBeam
+    computeBeamEndPair, fixedBeamEnds, solveHangingBeam, solveCascadeMainBeam
   };
 })();

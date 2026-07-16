@@ -710,14 +710,16 @@ function runFixedSlaveTest(name, shared, config, expectBeamLen, expectEndZ) {
   if (errs.length) failures.push({ name, errors: errs });
   else passCount++;
 }
-// Pair spacing 6 m < 5 m beam is inside the min-bottom-sling clamp zone, where
-// the OLD computeBeamEndPair shrank the beam to ~4 m — so these discriminate the
-// fix. New code must keep the full 5 m and stay horizontally balanced.
-// Symmetric hand-check: pair along y at x=-6, ends at y=±2.5 → each bottom sling
-// hd=0.5 from its LP; min-length (2) governs → zBeam = sqrt(2^2 - 0.5^2) = 1.9365.
+// Each 2nd-Lvl beam is a fixed physical bar (5 m) that must keep its full length
+// and hang plumb (net horizontal ~0). The Main beam is ALSO a fixed bar, so its
+// picks sit at the Main-beam ENDS (masterLength/2 = 5 from centre), inboard of the
+// x=±6 sub-COGs — the slave therefore hangs under x=-5, not x=-6, and shifts
+// inboard to balance. That inboard shift means the old closed-form beam height
+// (sqrt(2^2 - 0.5^2)) no longer applies, so we assert only the model-independent
+// invariants: fixed 5 m length + plumb hang (both checked in runFixedSlaveTest).
 runFixedSlaveTest('dbl-cas-fixed-len-symmetric',
   { liftingPoints: rectLPs(12, 6), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
-  { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5, 1.9365);
+  { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5);
 runFixedSlaveTest('dbl-cas-fixed-len-offset',
   { liftingPoints: rectLPs(12, 6), cog: { x: 1.5, y: 0.8, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 10, slaveLengthA: 5, slaveLengthB: 5, bottomSlingLen: 2 }, 5);
@@ -742,10 +744,9 @@ runTest('dbl-cas-steep-75', doubleCasCalc,
   { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 75, totalLoad: 10 },
   { masterLength: 4, slaveLengthA: 2, slaveLengthB: 2, bottomSlingLen: 2 });
 
-// === CASCADE: Main Beam over lifting points, hook over COG ===
-// Main Beam centres over the LP-midpoint (NOT the COG). With a centred COG the beam
-// centre coincides with the COG so the top slings are equal; with an offset COG the
-// beam stays over the LPs while the hook stays over the COG, so the top slings differ.
+// === CASCADE: fixed Main Beam repositions to hang under the hook (over COG) ===
+// The Main beam is a fixed bar whose ends are the picks; it translates/yaws to hang
+// in equilibrium. A centred COG is symmetric, so the two top slings come out equal.
 function runCascadeTopEqualTest(name, shared, config) {
   totalTests++;
   const errs = [];
@@ -763,33 +764,40 @@ runCascadeTopEqualTest('dbl-cas-centred-cog-top-equal',
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2,
     pairing: { groupA: [1, 4], groupB: [2, 3] } });
 
-// Offset COG: Main Beam centre stays over the LP-midpoint (NOT the COG), hook over
-// COG, so the two top slings come out at different lengths (rig hangs plumb, no lean).
-function runCascadeBeamOverLpsTest(name, shared, config, expectBeamCenter) {
+// Offset COG: the Main beam is a fixed bar of masterLength, so its picks (its two
+// ends) stay masterLength apart; the whole bar repositions/yaws to hang in
+// equilibrium with the hook over the COG, so the two top slings come out at
+// different lengths (rig hangs plumb, no lean). We no longer pin the beam centre to
+// any landmark — its resting position is the equilibrium output.
+function runCascadeOffsetCogTest(name, shared, config) {
   totalTests++;
   const errs = [];
   let r;
   try { r = CalcDoubleCas.calculate(shared, config); }
   catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
   const mb = r.beams.find(b => b.name === 'Main Beam');
-  const beamCx = (mb.endA.x + mb.endB.x) / 2, beamCy = (mb.endA.y + mb.endB.y) / 2;
-  if (Math.abs(beamCx - expectBeamCenter.x) > 0.02 || Math.abs(beamCy - expectBeamCenter.y) > 0.02)
-    errs.push(`beam centre (${beamCx.toFixed(3)},${beamCy.toFixed(3)}) != LP-mid (${expectBeamCenter.x},${expectBeamCenter.y})`);
-  if (Math.abs(beamCx - shared.cog.x) < 0.02 && Math.abs(beamCy - shared.cog.y) < 0.02)
-    errs.push(`beam centre coincides with the offset COG — should stay over LP-mid`);
+  const beamLen = Math.sqrt((mb.endB.x - mb.endA.x) ** 2 + (mb.endB.y - mb.endA.y) ** 2 + (mb.endB.z - mb.endA.z) ** 2);
+  if (Math.abs(beamLen - config.masterLength) > 0.01)
+    errs.push(`Main beam length ${beamLen.toFixed(3)} != masterLength ${config.masterLength}`);
+  const pA = r.intermediatePoints.find(p => p.label === 'Main Pick A');
+  const pB = r.intermediatePoints.find(p => p.label === 'Main Pick B');
+  const pickSpan = Math.sqrt((pB.x - pA.x) ** 2 + (pB.y - pA.y) ** 2 + (pB.z - pA.z) ** 2);
+  if (Math.abs(pickSpan - config.masterLength) > 0.01)
+    errs.push(`pick span ${pickSpan.toFixed(3)} != masterLength ${config.masterLength} (picks must be the bar ends)`);
   if (Math.abs(r.hook.x - shared.cog.x) > 0.01 || Math.abs(r.hook.y - shared.cog.y) > 0.01)
     errs.push(`hook (${r.hook.x},${r.hook.y}) not over COG (${shared.cog.x},${shared.cog.y})`);
   const top = r.tiers[2].slings;
   if (Math.abs(top[0].length - top[1].length) < 0.1)
     errs.push(`top slings should differ (offset COG): ${top[0].length} vs ${top[1].length}`);
+  if (r.warnings.beamEquilibriumNotConverged)
+    errs.push(`rig should reach equilibrium for an in-kern offset COG`);
   if (errs.length) failures.push({ name, errors: errs, shared, config });
   else passCount++;
 }
-runCascadeBeamOverLpsTest('dbl-cas-offset-cog-beam-over-lps',
+runCascadeOffsetCogTest('dbl-cas-offset-cog-picks-at-ends',
   { liftingPoints: rectLPs(8, 4), cog: { x: 1.5, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2,
-    pairing: { groupA: [1, 4], groupB: [2, 3] } },
-  { x: 0, y: 0 });
+    pairing: { groupA: [1, 4], groupB: [2, 3] } });
 
 // === CASCADE: horizontal equilibrium (pick over sub-COG) ===
 // Net horizontal force at the hook from the two top slings — the source of "lean".
@@ -836,8 +844,12 @@ runCascadeHookBalancedTest('dbl-cas-onaxis-cog-asym-top',
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
   { topAsym: true });
 
-// Picks sit over the reaction-weighted sub-COGs; hook plan == COG.
-function runCascadePicksOverSubCogTest(name, shared, config) {
+// Picks are the Main-beam ENDS, so they sit masterLength apart — NOT at the
+// reaction-weighted sub-COGs (a fixed bar cannot put its connection at its middle).
+// Here the sub-COG span (8) exceeds masterLength (6), so the bar physically cannot
+// reach the sub-COGs; its ends fall inboard. The hook still tracks the COG, and the
+// x-symmetric COG keeps the two picks mirror-imaged about the hook.
+function runCascadePicksAtEndsTest(name, shared, config) {
   totalTests++;
   const errs = [];
   let r;
@@ -848,15 +860,27 @@ function runCascadePicksOverSubCogTest(name, shared, config) {
   const gA = config.pairing.groupA.map(v => v - 1), gB = config.pairing.groupB.map(v => v - 1);
   const sc = (idxs) => { let w = 0, sx = 0, sy = 0; idxs.forEach(i => { w += R[i]; sx += R[i] * lps[i].x; sy += R[i] * lps[i].y; }); return { x: sx / w, y: sy / w }; };
   const scA = sc(gA), scB = sc(gB);
+  const subCogSpan = Math.hypot(scB.x - scA.x, scB.y - scA.y);
   const pA = r.intermediatePoints.find(p => p.label === 'Main Pick A');
   const pB = r.intermediatePoints.find(p => p.label === 'Main Pick B');
   if (!pA || !pB) { failures.push({ name, errors: ['Main Pick A/B missing from intermediatePoints'] }); return; }
-  if (Math.abs(pA.x - scA.x) > 1e-3 || Math.abs(pA.y - scA.y) > 1e-3) errs.push(`pickA (${pA.x},${pA.y}) != subCogA (${scA.x.toFixed(3)},${scA.y.toFixed(3)})`);
-  if (Math.abs(pB.x - scB.x) > 1e-3 || Math.abs(pB.y - scB.y) > 1e-3) errs.push(`pickB (${pB.x},${pB.y}) != subCogB (${scB.x.toFixed(3)},${scB.y.toFixed(3)})`);
+  const pickSpan = Math.hypot(pB.x - pA.x, pB.y - pA.y, pB.z - pA.z);
+  if (Math.abs(pickSpan - config.masterLength) > 0.01)
+    errs.push(`pick span ${pickSpan.toFixed(3)} != masterLength ${config.masterLength} (picks must be the bar ends)`);
+  if (!(subCogSpan > config.masterLength + 0.05))
+    errs.push(`test premise broken: sub-COG span ${subCogSpan.toFixed(3)} should exceed masterLength ${config.masterLength}`);
+  // picks must NOT sit at the sub-COGs (they fall inboard of them)
+  if (Math.abs(pA.x - scA.x) < 1e-2 && Math.abs(pA.y - scA.y) < 1e-2)
+    errs.push(`pickA landed on sub-COG — should sit inboard at the bar end`);
+  // x-symmetric COG -> picks mirror-imaged about the hook x, equal y and z
+  if (Math.abs((pA.x - r.hook.x) + (pB.x - r.hook.x)) > 1e-2 || Math.abs(pA.y - pB.y) > 1e-2)
+    errs.push(`picks not mirror-symmetric about hook: A(${pA.x},${pA.y}) B(${pB.x},${pB.y})`);
+  if (Math.abs(r.hook.x - shared.cog.x) > 0.01 || Math.abs(r.hook.y - shared.cog.y) > 0.01)
+    errs.push(`hook (${r.hook.x},${r.hook.y}) not over COG`);
   if (errs.length) failures.push({ name, errors: errs, shared, config });
   else passCount++;
 }
-runCascadePicksOverSubCogTest('dbl-cas-picks-over-subcog',
+runCascadePicksAtEndsTest('dbl-cas-picks-at-bar-ends',
   { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 1.5, z: 0 }, minAngleDeg: 60, totalLoad: 100 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
 
@@ -917,41 +941,41 @@ runCascadeMiddleLongerTest('dbl-cas-middle-angle-lengthens',
   { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2 }, 65);
 
-// Main Beam is a physical bar of masterLength with picks inboard; too-short warns.
-function runCascadeBeamLengthTest(name, shared, config, expectLen, expectTooShort) {
+// Main Beam is a fixed physical bar: its drawn length always equals masterLength and
+// its picks ARE the two ends (pick span == masterLength). There is no "too short"
+// state — the bar is whatever length it is, and the slings splay to suit. The rig
+// must still reach equilibrium (no beamEquilibriumNotConverged) for a centred COG.
+function runCascadeBeamLengthTest(name, shared, config) {
   totalTests++;
   const errs = [];
   let r;
   try { r = CalcDoubleCas.calculate(shared, config); }
   catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
   const mb = r.beams.find(b => b.name === 'Main Beam');
-  if (Math.abs(mb.length - expectLen) > 0.01) errs.push(`main beam length ${mb.length} != ${expectLen}`);
-  if (!!r.warnings.mainBeamTooShort !== expectTooShort)
-    errs.push(`mainBeamTooShort=${r.warnings.mainBeamTooShort}, expected ${expectTooShort}`);
-  // picks must lie ON the physical bar segment (endA..endB), not just within radius of endA.
-  // A point P lies on segment endA-endB iff dist(P,endA) + dist(P,endB) == spanAB (within tolerance);
-  // a sign-flipped/outboard pick would push the sum above spanAB.
+  const drawnLen = Math.sqrt((mb.endB.x - mb.endA.x) ** 2 + (mb.endB.y - mb.endA.y) ** 2 + (mb.endB.z - mb.endA.z) ** 2);
+  if (Math.abs(mb.length - config.masterLength) > 0.01) errs.push(`main beam length ${mb.length} != masterLength ${config.masterLength}`);
+  if (Math.abs(drawnLen - config.masterLength) > 0.01) errs.push(`drawn end-to-end length ${drawnLen.toFixed(3)} != masterLength ${config.masterLength}`);
   const pA = r.intermediatePoints.find(p => p.label === 'Main Pick A');
   const pB = r.intermediatePoints.find(p => p.label === 'Main Pick B');
   if (!pA || !pB) { failures.push({ name, errors: ['Main Pick A/B missing from intermediatePoints'], shared, config }); return; }
-  const spanAB = Math.sqrt((mb.endB.x - mb.endA.x) ** 2 + (mb.endB.y - mb.endA.y) ** 2);
-  for (const [label, p] of [['Main Pick A', pA], ['Main Pick B', pB]]) {
-    const dEndA = Math.sqrt((p.x - mb.endA.x) ** 2 + (p.y - mb.endA.y) ** 2);
-    const dEndB = Math.sqrt((p.x - mb.endB.x) ** 2 + (p.y - mb.endB.y) ** 2);
-    if (dEndA + dEndB > spanAB + 0.01) errs.push(`${label} outside bar span`);
-  }
+  // Picks ARE the bar ends: their span equals masterLength and each coincides with an end.
+  const pickSpan = Math.sqrt((pB.x - pA.x) ** 2 + (pB.y - pA.y) ** 2 + (pB.z - pA.z) ** 2);
+  if (Math.abs(pickSpan - config.masterLength) > 0.01) errs.push(`pick span ${pickSpan.toFixed(3)} != masterLength ${config.masterLength}`);
+  const dA = Math.min(Math.hypot(pA.x - mb.endA.x, pA.y - mb.endA.y, pA.z - mb.endA.z), Math.hypot(pA.x - mb.endB.x, pA.y - mb.endB.y, pA.z - mb.endB.z));
+  const dB = Math.min(Math.hypot(pB.x - mb.endA.x, pB.y - mb.endA.y, pB.z - mb.endA.z), Math.hypot(pB.x - mb.endB.x, pB.y - mb.endB.y, pB.z - mb.endB.z));
+  if (dA > 0.01 || dB > 0.01) errs.push(`picks not at the bar ends (dA=${dA.toFixed(3)}, dB=${dB.toFixed(3)})`);
+  if (r.warnings.beamEquilibriumNotConverged) errs.push(`rig should reach equilibrium for a centred COG`);
   if (errs.length) failures.push({ name, errors: errs, shared, config });
   else passCount++;
 }
-// pickSpacing for rectLPs(8,4) with pairing [1,4]/[2,3] and centred COG = 8.
-runCascadeBeamLengthTest('dbl-cas-main-beam-honors-length',
+// A long bar (10) and a short bar (6) over the same LPs: both are drawn at their
+// entered length with picks at the ends — the bar length is an input, not derived.
+runCascadeBeamLengthTest('dbl-cas-main-beam-honors-length-long',
   { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
-  { masterLength: 10, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
-  10, false);
-runCascadeBeamLengthTest('dbl-cas-main-beam-too-short',
+  { masterLength: 10, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
+runCascadeBeamLengthTest('dbl-cas-main-beam-honors-length-short',
   { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
-  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
-  8, true);
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
 
 // COG beyond the LP hull yields a negative reaction → sub-COG falls back to the
 // geometric midpoint and warns, but geometry stays finite.
@@ -979,8 +1003,11 @@ runCascadeSubCogFallbackTest('dbl-cas-subcog-no-fallback',
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } },
   false);
 // In-hull near-corner COG (inside the polygon but outside the support "kern"):
-// a reaction goes negative -> clamp-and-renormalise keeps the pick LOAD-AWARE
-// (lands on the loaded LP), NOT the geometric midpoint. Still flagged unreliable.
+// a min-norm reaction goes negative, meaning that LP would have to pull DOWN — a
+// slings-only rig CANNOT balance it. The sub-COG seed clamp-and-renormalise flags
+// subCogFallback, and the free-hang solve cannot settle, so beamEquilibriumNotConverged
+// also fires. The rig is therefore surfaced as UNRELIABLE (both warnings), rather
+// than silently returning a plausible-looking but unbalanced geometry.
 (function () {
   totalTests++;
   const errs = [];
@@ -988,15 +1015,15 @@ runCascadeSubCogFallbackTest('dbl-cas-subcog-no-fallback',
   const config = { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } };
   let r;
   try { r = CalcDoubleCas.calculate(shared, config); }
-  catch (e) { failures.push({ name: 'dbl-cas-subcog-clamp-loadaware', error: `EXCEPTION: ${e.message}` }); return; }
+  catch (e) { failures.push({ name: 'dbl-cas-subcog-clamp-unreliable', error: `EXCEPTION: ${e.message}` }); return; }
   if (!r.warnings.subCogFallback) errs.push('subCogFallback should be true for in-hull near-corner COG');
   if (r.warnings.cogOutsidePolygon) errs.push('cogOutsidePolygon should be false (COG is inside the hull)');
-  const pA = r.intermediatePoints.find(p => p.label === 'Main Pick A');
-  // group A = LP1(-4,-2) [reaction<0 -> clamped to 0] + LP4(-4,2): pick lands on
-  // the loaded LP4 (~ -4, 2), NOT the geometric midpoint (-4, 0).
-  if (!pA || Math.abs(pA.x - (-4)) > 0.01 || pA.y < 1.5)
-    errs.push(`pickA (${pA && pA.x},${pA && pA.y}) not clamped toward loaded LP4 (~-4,2); midpoint would be (-4,0)`);
-  if (errs.length) failures.push({ name: 'dbl-cas-subcog-clamp-loadaware', errors: errs });
+  if (!r.warnings.beamEquilibriumNotConverged)
+    errs.push('beamEquilibriumNotConverged should be true — a negative reaction cannot be balanced by slings');
+  // Even when flagged unreliable, geometry must stay finite (no NaN/Inf/zero-length).
+  const all = r.tiers.flatMap(t => t.slings);
+  if (all.some(s => !isFinite(s.length) || s.length <= 0)) errs.push('non-finite/zero sling length under unreliable state');
+  if (errs.length) failures.push({ name: 'dbl-cas-subcog-clamp-unreliable', errors: errs });
   else passCount++;
 })();
 

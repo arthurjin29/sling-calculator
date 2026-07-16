@@ -1,14 +1,16 @@
 /**
  * Sling Length Calculator — Double Spreader (Cascading) Configuration
  *
- * Each 2nd-level (slave) beam is picked over the COG of the load it carries
- * (its sub-COG), not the geometric midpoint of its LP pair. The Main Beam's
- * sling pick points sit inboard, over the two sub-COGs, and the hook (over
- * the total COG) lands collinear with those two picks — so the top slings
- * balance horizontally with no lean. Each 2nd-level beam is a fixed-length bar
- * (the entered slaveLength): its ends are placed via CalcCore.fixedBeamEnds so
- * the beam hangs plumb (pick over the load-weighted average of the ends), and
- * the bottom slings pull in / splay out to reach those fixed ends.
+ * Every beam is a FIXED physical bar and every connection sits at a beam END —
+ * a spreader cannot put its pick at its middle. The Main Beam's two ends ARE its
+ * sling pick points (span = masterLength), and the whole bar translates/yaws to
+ * hang in equilibrium under the hook (over the total COG), so the rig hangs plumb
+ * with no lean and the slings splay to whatever angle balances it. Each 2nd-level
+ * (slave) beam is likewise a fixed-length bar (the entered slaveLength): it hangs
+ * from its Main-Beam pick and carries its two LPs, held from ABOVE (middle slings)
+ * and BELOW (bottom slings) so it can sit level even under an off-centre pick. The
+ * sub-COGs (reaction-weighted, load-aware) are only the SEED for placing the Main
+ * bar — the picks then settle at the bar ends via the coupled free-hang solve.
  *
  *   Top:     2 slings (hook → Main-Beam pick points)
  *   Middle:  4 slings (slave beam ends → Main-Beam pick points)
@@ -85,78 +87,66 @@ window.CalcDoubleCas = (() => {
     const subCogA = subCogOf(groupAIdxs);
     const subCogB = subCogOf(groupBIdxs);
 
-    // Main-Beam sling pick points sit over each side's sub-COG (plan x,y).
-    const pickAxy = { x: subCogA.x, y: subCogA.y };
-    const pickBxy = { x: subCogB.x, y: subCogB.y };
-
     // ── 3. Vertical load shares per LP (clamped — same basis as subCogOf) ──
     const wA0 = Math.max(0, reactions[groupAIdxs[0]]);
     const wA1 = Math.max(0, reactions[groupAIdxs[1]]);
     const wB0 = Math.max(0, reactions[groupBIdxs[0]]);
     const wB1 = Math.max(0, reactions[groupBIdxs[1]]);
+    const WA = wA0 + wA1, WB = wB0 + wB1;
 
-    // Fixed-length slave beam ends (plan positions; z set below). Each beam is a
-    // rigid bar of the entered length, axis along its LP-pair line, centred so it
-    // hangs plumb under its Main pick (pick over the end-weighted average).
-    const endsA = C.fixedBeamEnds(groupALPs[0], groupALPs[1], wA0, wA1, subCogA, slaveLengthA);
-    const endsB = C.fixedBeamEnds(groupBLPs[0], groupBLPs[1], wB0, wB1, subCogB, slaveLengthB);
+    // ── 4. Coupled free-hang solve — every beam is a FIXED physical bar ───────────
+    // Connections sit at each beam's ENDS and the slings splay to whatever angle
+    // balances the rig. Each 2nd-Lvl beam hangs from its Main pick and supports its
+    // two LPs (CalcCore.solveHangingBeam); the Main beam hangs from the hook and
+    // supports the two sub-spreaders — each of its ends carrying that sub's TWO
+    // middle slings (CalcCore.solveCascadeMainBeam), which also raises the Main beam
+    // so every middle sling meets the middle-lay angle floor. A 2nd-Lvl beam can sit
+    // level under an off-centre pick because it is held from ABOVE (middle slings)
+    // and BELOW (bottom slings). Heights cascade LP → 2nd-Lvl → Main → hook, so
+    // iterate the whole z-stack to convergence.
+    const seedH = Math.max(...liftingPoints.map(p => p.z)) + 1e4;
+    const seedMain = C.fixedBeamEnds(subCogA, subCogB, WA, WB, cog, masterLength);
+    let pickA = { x: seedMain.end0.x, y: seedMain.end0.y, z: seedH };
+    let pickB = { x: seedMain.end1.x, y: seedMain.end1.y, z: seedH };
+    let hookZ = seedH + 1e4;
 
-    // Slave beam height: raise the rigid horizontal beam until BOTH its bottom
-    // slings meet the min angle AND the min bottom-sling length. The entered
-    // "Bottom Sling Length" is a MINIMUM — lift the beam, never shrink it.
-    const zBeamOf = (lp0, e0, lp1, e1) => {
-      const req = (lp, e) => {
-        const hd = C.horizontalDist(lp, e);
-        const zAngle = lp.z + hd * Math.tan(minAngleRad);
-        const zLen = (minSlingLen > hd) ? lp.z + Math.sqrt(minSlingLen * minSlingLen - hd * hd) : lp.z;
-        return Math.max(zAngle, zLen);
-      };
-      return Math.max(req(lp0, e0), req(lp1, e1));
-    };
-    const zBA = zBeamOf(groupALPs[0], endsA.end0, groupALPs[1], endsA.end1);
-    const zBB = zBeamOf(groupBLPs[0], endsB.end0, groupBLPs[1], endsB.end1);
+    let sA, sB, mE, masterZ = seedH;
+    let mainConv = true, subConvA = true, subConvB = true, stackConv = false;
+    for (let outer = 0; outer < 40; outer++) {
+      sA = C.solveHangingBeam(groupALPs[0], groupALPs[1], wA0, wA1, pickA, pickA.z, slaveLengthA, minAngleRad, minSlingLen);
+      sB = C.solveHangingBeam(groupBLPs[0], groupBLPs[1], wB0, wB1, pickB, pickB.z, slaveLengthB, minAngleRad, minSlingLen);
+      subConvA = sA.converged; subConvB = sB.converged;
+      mE = C.solveCascadeMainBeam(sA.end0, sA.end1, wA0, wA1, sB.end0, sB.end1, wB0, wB1, hookXY, hookZ, masterLength, middleAngleRad);
+      mainConv = mE.converged; masterZ = mE.z;
+      const npA = { x: mE.end0.x, y: mE.end0.y, z: masterZ };
+      const npB = { x: mE.end1.x, y: mE.end1.y, z: masterZ };
+      const newHookZ = masterZ + Math.max(C.horizontalDist(npA, hookXY), C.horizontalDist(npB, hookXY)) * Math.tan(topAngleRad);
+      const chg = Math.hypot(npA.x - pickA.x, npA.y - pickA.y) + Math.hypot(npB.x - pickB.x, npB.y - pickB.y)
+                + Math.abs(newHookZ - hookZ) + Math.abs(masterZ - pickA.z);
+      pickA = npA; pickB = npB; hookZ = newHookZ;
+      if (chg < 1e-5) { stackConv = true; break; }
+    }
+    const beamEquilibriumNotConverged = !mainConv || !subConvA || !subConvB || !stackConv;
+    // Final 2nd-Lvl solve at the settled picks so the drawn sub ends match the picks.
+    sA = C.solveHangingBeam(groupALPs[0], groupALPs[1], wA0, wA1, pickA, pickA.z, slaveLengthA, minAngleRad, minSlingLen);
+    sB = C.solveHangingBeam(groupBLPs[0], groupBLPs[1], wB0, wB1, pickB, pickB.z, slaveLengthB, minAngleRad, minSlingLen);
 
-    const slaveA1 = { ...endsA.end0, z: zBA };
-    const slaveA2 = { ...endsA.end1, z: zBA };
-    const slaveB1 = { ...endsB.end0, z: zBB };
-    const slaveB2 = { ...endsB.end1, z: zBB };
+    const hook = { x: cog.x, y: cog.y, z: hookZ };
+    const slaveA1 = { x: sA.end0.x, y: sA.end0.y, z: sA.end0.z };
+    const slaveA2 = { x: sA.end1.x, y: sA.end1.y, z: sA.end1.z };
+    const slaveB1 = { x: sB.end0.x, y: sB.end0.y, z: sB.end0.z };
+    const slaveB2 = { x: sB.end1.x, y: sB.end1.y, z: sB.end1.z };
+    const masterPicks = { pickA, pickB };
 
-    // Main pick height: raised so every middle sling (slave end → Main pick)
-    // meets the middle-lay target angle. Ends are fixed, so this is direct.
-    const midReqZ = (end, pickxy) => end.z + C.horizontalDist(end, pickxy) * Math.tan(middleAngleRad);
-    const masterZ = Math.max(
-      midReqZ(slaveA1, pickAxy), midReqZ(slaveA2, pickAxy),
-      midReqZ(slaveB1, pickBxy), midReqZ(slaveB2, pickBxy)
-    );
+    // Main Beam ends ARE the pick points — the full physical masterLength is used,
+    // with no inboard overhang.
+    const physicalLength = masterLength;
+    const mainBeamEndA = { ...pickA };
+    const mainBeamEndB = { ...pickB };
 
-    const masterPicks = {
-      pickA: { ...pickAxy, z: masterZ },
-      pickB: { ...pickBxy, z: masterZ }
-    };
-
-    // Main Beam is a physical bar of masterLength; the sling pick points slide
-    // inboard over the sub-COGs. Bar spans the picks plus symmetric overhang.
-    const pickSpacing = C.horizontalDist(masterPicks.pickA, masterPicks.pickB);
-    const mainBeamTooShort = masterLength < pickSpacing - 1e-9;
-    const physicalLength = Math.max(masterLength, pickSpacing);
-    const overhang = (physicalLength - pickSpacing) / 2;
-    let mbUx = 0, mbUy = 0;
-    if (pickSpacing > 1e-9) { mbUx = (pickBxy.x - pickAxy.x) / pickSpacing; mbUy = (pickBxy.y - pickAxy.y) / pickSpacing; }
-    const mainBeamEndA = { x: pickAxy.x - mbUx * overhang, y: pickAxy.y - mbUy * overhang, z: masterZ };
-    const mainBeamEndB = { x: pickBxy.x + mbUx * overhang, y: pickBxy.y + mbUy * overhang, z: masterZ };
-
-    // Actual slave beam lengths
+    // Actual (built) beam lengths — fixed to the entered lengths.
     const actualSlaveLenA = C.round4(C.dist3D(slaveA1, slaveA2));
     const actualSlaveLenB = C.round4(C.dist3D(slaveB1, slaveB2));
-
-    // ── 4. Hook — above master beam at top-lay angle (default min angle) ──
-    const hDistHA = C.horizontalDist(masterPicks.pickA, hookXY);
-    const hDistHB = C.horizontalDist(masterPicks.pickB, hookXY);
-    const hook = {
-      x: cog.x,
-      y: cog.y,
-      z: masterZ + Math.max(hDistHA, hDistHB) * Math.tan(topAngleRad)
-    };
 
     // ── 5. COG polygon validation ──
     const cogOutsidePolygon = !C.pointInPolygon2D(cog, liftingPoints);
@@ -213,35 +203,21 @@ window.CalcDoubleCas = (() => {
     );
     topSlings.push(topSlingB);
 
-    // ── 9. Tensions — cascade downward ──
-    const [topTensionA, topTensionB] = C.calcTwoSlingTension(masterPicks.pickA, masterPicks.pickB, hook, totalLoad);
-    topSlingA.tension = C.round4(topTensionA);
-    topSlingB.tension = C.round4(topTensionB);
-
-    const vLoadMasterA = C.computeVerticalLoad(topTensionA, masterPicks.pickA, hook);
-    const vLoadMasterB = C.computeVerticalLoad(topTensionB, masterPicks.pickB, hook);
-
-    // Middle tier: 2 slings per master end sharing that side's vertical load
-    const midTensionsA = C.calcTwoSlingTension(slaveA1, slaveA2, masterPicks.pickA, vLoadMasterA);
-    middleSlings[0].tension = C.round4(midTensionsA[0]);
-    middleSlings[1].tension = C.round4(midTensionsA[1]);
-
-    const midTensionsB = C.calcTwoSlingTension(slaveB1, slaveB2, masterPicks.pickB, vLoadMasterB);
-    middleSlings[2].tension = C.round4(midTensionsB[0]);
-    middleSlings[3].tension = C.round4(midTensionsB[1]);
-
-    // Bottom tier: each bottom sling carries the vertical load from its slave beam end
+    // ── 9. Tensions — each sling carries its own load's vertical component, matching
+    //       the free-hang solve (per-end loads, not a moment split). A top sling holds
+    //       its side's full sub-assembly (WA / WB); a middle/bottom sling holds its
+    //       own end's LP load. ──
+    const endW = [wA0, wA1, wB0, wB1];
+    const slingTension = (w, a, b) => {
+      const len = C.dist3D(a, b);
+      const vd = Math.abs(b.z - a.z);
+      return C.round4((len < 1e-4 || vd < 1e-4) ? w : w * len / vd);
+    };
+    topSlingA.tension = slingTension(WA, masterPicks.pickA, hook);
+    topSlingB.tension = slingTension(WB, masterPicks.pickB, hook);
     for (let i = 0; i < 4; i++) {
-      const midSling = middleSlings[i];
-      const botSling = bottomSlings[i];
-      const vLoad = C.computeVerticalLoad(midSling.tension, midSling.from, midSling.to);
-      const len = C.dist3D(botSling.from, botSling.to);
-      const vd = Math.abs(botSling.to.z - botSling.from.z);
-      if (len < 0.0001 || vd < 0.0001) {
-        botSling.tension = C.round4(vLoad);
-      } else {
-        botSling.tension = C.round4(vLoad * len / vd);
-      }
+      middleSlings[i].tension = slingTension(endW[i], middleSlings[i].from, middleSlings[i].to);
+      bottomSlings[i].tension = slingTension(endW[i], bottomSlings[i].from, bottomSlings[i].to);
     }
 
     // ── 10. Vertical loads ──
@@ -335,7 +311,7 @@ window.CalcDoubleCas = (() => {
         topSlingAngleLow,
         nearHorizontalBottom,
         bottomSlingBelowMin,
-        mainBeamTooShort,
+        beamEquilibriumNotConverged,
         subCogFallback,
         liftBeamBendingNotChecked: false
       }
