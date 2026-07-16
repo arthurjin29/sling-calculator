@@ -313,7 +313,10 @@ window.CalcDoubleCas = (() => {
         bottomSlingBelowMin,
         beamEquilibriumNotConverged,
         subCogFallback,
-        liftBeamBendingNotChecked: false
+        liftBeamBendingNotChecked: false,
+        // The balanced Main/2nd-Lvl bars carry real axial compression + bending that
+        // this tool does NOT size — surface a standing note for the cascade config.
+        spreaderBeamCapacityNotChecked: true
       }
     };
   }

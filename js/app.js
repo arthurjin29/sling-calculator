@@ -965,14 +965,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (warnings.bottomAngleLow) {
       msgs.push('One or more bottom sling angles are below the specified minimum angle. Increase the top sling length or revise the geometry.');
     }
-    if (warnings.mainBeamTooShort) {
-      msgs.push('Main beam is shorter than the required pick-point span — the beam has been drawn at the minimum span needed to reach both pick points. Specify a longer main beam.');
-    }
     if (warnings.subCogFallback) {
       msgs.push('A lifting point returned a negative load share (the COG is outside the support “kern” of the lifting points), so a spreader pick was clamped to the loaded side. The load distribution and rig geometry for this configuration are UNRELIABLE, and a top-sling tension may hide a slack/compression (negative) leg. Verify the COG and lifting-point positions.');
     }
     if (warnings.liftBeamBendingNotChecked) {
       msgs.push('Lifting beam bending capacity has NOT been checked — verify the beam can safely support the calculated loads and span.');
+    }
+    if (warnings.spreaderBeamCapacityNotChecked) {
+      msgs.push('Spreader beam capacity has NOT been checked — the balanced main and 2nd-level beams carry axial compression (and bending) that this tool does not size. Verify each beam against AS 4991 / AS 1418 or its rated chart.');
     }
     if (warnings.beamEquilibriumNotConverged) {
       msgs.push('A spreader beam did not reach a balanced hanging position — the rig geometry for this configuration is UNRELIABLE. Verify the beam length, lifting-point positions, and COG.');

@@ -540,14 +540,16 @@ const CalcCore = (() => {
       const req = (p, e) => e.z + Math.hypot(p.x - e.x, p.y - e.y) * tanMid;
       return Math.max(req(pa, eA0), req(pa, eA1), req(pb, eB0), req(pb, eB1));
     };
+    const EPS_DZ = 1e-9; // floor vertical drops so a coincident joint (hd=0, dz=0)
+                         // can't produce a non-finite residual and stall the solve.
     const residual = (cx, cy, th) => {
       const { pa, pb, ux, uy } = endsOf(cx, cy, th);
       const z = zOf(pa, pb);
-      const dzTop = H - z;
+      const dzTop = Math.max(EPS_DZ, H - z);
       // Net horizontal at a pick = top sling (carries the side's total load Ws toward
       // the hook) + the two middle slings (each carries its sub-end load toward eX).
       const hvec = (p, e0, e1, w0, w1) => {
-        const Ws = w0 + w1, dz0 = z - e0.z, dz1 = z - e1.z;
+        const Ws = w0 + w1, dz0 = Math.max(EPS_DZ, z - e0.z), dz1 = Math.max(EPS_DZ, z - e1.z);
         return {
           x: Ws * (hook.x - p.x) / dzTop + w0 * (e0.x - p.x) / dz0 + w1 * (e1.x - p.x) / dz1,
           y: Ws * (hook.y - p.y) / dzTop + w0 * (e0.y - p.y) / dz0 + w1 * (e1.y - p.y) / dz1
@@ -559,10 +561,13 @@ const CalcCore = (() => {
 
     let converged = false;
     const damp = 0.6, eps = 1e-6;
+    // Residual is in load units; normalise the convergence test by the total load so the
+    // tolerance is a fraction of load (scale-free), not an absolute tonnage.
+    const rScale = Math.max(W, 1e-9);
     for (let it = 0; it < 80; it++) {
       const r = residual(cx, cy, th);
       if (!isFinite(r[0] + r[1] + r[2])) break;
-      if (Math.hypot(r[0], r[1], r[2]) < 1e-7) { converged = true; break; }
+      if (Math.hypot(r[0], r[1], r[2]) / rScale < 1e-9) { converged = true; break; }
       const r1 = residual(cx + eps, cy, th), r2 = residual(cx, cy + eps, th), r3 = residual(cx, cy, th + eps);
       const J = [
         [(r1[0] - r[0]) / eps, (r2[0] - r[0]) / eps, (r3[0] - r[0]) / eps],

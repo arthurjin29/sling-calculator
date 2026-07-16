@@ -1,3 +1,9 @@
+> ⚠️ **SUPERSEDED (2026-07-16)** by
+> `2026-07-16-cascade-fixed-length-main-beam-design.md`. The pick-over-sub-COG model
+> and the `mainBeamTooShort` warning described below are **retired** — the Main Beam is
+> now a fixed-length bar whose picks are its two ends. Kept for history only; do not
+> implement from this doc.
+
 # Cascade Horizontal Equilibrium (Pick-Over-Sub-COG) — Design
 
 **Config affected:** Double Spreader (Cascading) only. All other configs untouched.

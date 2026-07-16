@@ -884,6 +884,37 @@ runCascadePicksAtEndsTest('dbl-cas-picks-at-bar-ends',
   { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 1.5, z: 0 }, minAngleDeg: 60, totalLoad: 100 },
   { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
 
+// The Main Beam must hang balanced: the net horizontal force from ALL slings acting on
+// its two ends (2 top + 4 middle) is ~0. This is the real equilibrium invariant — the
+// "sum of vertical loads = total" check is tautological (tension is defined as w*L/vd,
+// so vertical load returns w by construction) and CANNOT catch a horizontal/moment
+// imbalance. Tested across symmetric, on-axis, perpendicular and diagonal COG offsets.
+function runCascadeMainBeamBalancedTest(name, shared, config) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = CalcDoubleCas.calculate(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const mb = beamHorizNet(r, ['Main Pick A', 'Main Pick B']);
+  const tol = 0.005 * shared.totalLoad; // 0.5% of load
+  if (mb.matched !== 6) errs.push(`Main Beam should have 6 attached slings (2 top + 4 middle), got ${mb.matched}`);
+  if (mb.net > tol) errs.push(`Main Beam net horizontal ${mb.net.toFixed(4)} > tol ${tol.toFixed(4)} — bar not balanced`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+runCascadeMainBeamBalancedTest('dbl-cas-main-beam-balanced-centred',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
+runCascadeMainBeamBalancedTest('dbl-cas-main-beam-balanced-onaxis',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 2, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
+runCascadeMainBeamBalancedTest('dbl-cas-main-beam-balanced-perp',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 1.5, z: 0 }, minAngleDeg: 60, totalLoad: 100 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
+runCascadeMainBeamBalancedTest('dbl-cas-main-beam-balanced-diagonal',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 1.2, y: 0.7, z: 0 }, minAngleDeg: 45, totalLoad: 50 },
+  { masterLength: 6, slaveLengthA: 3, slaveLengthB: 3, bottomSlingLen: 2, pairing: { groupA: [1, 4], groupB: [2, 3] } });
+
 // === CASCADE: per-lay angle overrides ===
 function runCascadeLayAngleTest(name, shared, config, tierIdx, targetAngle) {
   totalTests++;

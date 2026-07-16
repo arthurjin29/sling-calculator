@@ -1,3 +1,7 @@
+> ⚠️ **SUPERSEDED (2026-07-16)** — implemented then retired. The fixed-length Main Beam
+> (picks at the bar ends) replaced this pick-over-sub-COG plan; see
+> `docs/superpowers/specs/2026-07-16-cascade-fixed-length-main-beam-design.md`. History only.
+
 # Cascade Horizontal Equilibrium (Pick-Over-Sub-COG) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
