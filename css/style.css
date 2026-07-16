@@ -501,15 +501,13 @@ tr:hover { background: #eaf2f8; }
 
 /* Advanced-mode 3-panel app-shell (screen, wide, advanced only) */
 @media screen and (min-width: 1001px) {
-  html.mode-advanced, body.mode-advanced { height: 100dvh; margin: 0; overflow: hidden; }   /* no page scroll */
+  body.mode-advanced { margin: 0; }   /* page scrolls: results live below the fold */
   body.mode-advanced .container {
     display: flex;
     flex-direction: column;
-    height: 100dvh;
     max-width: none;
     padding: 0.6rem 1rem;
     box-sizing: border-box;
-    overflow: hidden;
   }
   /* Compact the page header so the panels get the vertical space */
   body.mode-advanced .container > h1 { font-size: 1.35rem; margin: 0 0 0.2rem; }
@@ -517,15 +515,14 @@ tr:hover { background: #eaf2f8; }
   body.mode-advanced .disclaimer { font-size: 0.72rem; padding: 0.4rem 0.6rem; margin-bottom: 0.4rem; }
   body.mode-advanced .mode-toggle { margin: 0.2rem 0 0.4rem; }
   body.mode-advanced #advanced-layout {
-    flex: 1 1 auto;
-    min-height: 0;
+    height: calc(100dvh - 8.6rem);   /* one viewport minus the page header (h1 + disclaimer + mode toggle); tuned so results sit at the fold */
+    box-sizing: border-box;
     display: grid;
     grid-template-columns: 0.58fr 1fr;
-    grid-template-rows: auto minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "toolbar toolbar"
-      "inputs  diagram"
-      "results results";
+      "inputs  diagram";
     gap: 0.75rem;
   }
   body.mode-advanced #advanced-layout > .toolbar { grid-area: toolbar; }
@@ -554,15 +551,9 @@ tr:hover { background: #eaf2f8; }
   body.mode-advanced #diagram-panel > .card { flex: 1; display: flex; flex-direction: column; margin: 0; min-width: 0; min-height: 0; }
   body.mode-advanced #diagram-panel #scene-container { flex: 1; height: auto; min-width: 0; min-height: 0; }
   body.mode-advanced #diagram-panel #scene-container canvas { max-width: 100%; display: block; }
-  body.mode-advanced #results { grid-area: results; overflow: auto; min-width: 0; min-height: 0; position: relative; }
-  /* Sticky safety warnings at the top of the results panel */
-  body.mode-advanced #results #calc-warnings {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-    background: var(--bg, #fff);
-    padding-bottom: 0.5rem;
-  }
+  /* Results flow below the fold as a normal full-width block */
+  body.mode-advanced #results { margin-top: 0.75rem; min-width: 0; }
+  body.mode-advanced #results #calc-warnings { background: var(--bg, #fff); padding-bottom: 0.5rem; }
 }
 
 /* Print styles */
