@@ -644,3 +644,9 @@ tr:hover { background: #eaf2f8; }
 @media (max-width: 700px) {
   .simple-layout { grid-template-columns: 1fr; }
 }
+
+/* --- Temporarily hidden result sections (2026-07-16) — delete this block to restore --- */
+#load-sharing-container,
+#drawing-overlay-container,
+#dxf-import-container,
+#stl-import-container { display: none !important; }
