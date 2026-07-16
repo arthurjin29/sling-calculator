@@ -501,12 +501,13 @@ tr:hover { background: #eaf2f8; }
 
 /* Advanced-mode 3-panel app-shell (screen, wide, advanced only) */
 @media screen and (min-width: 1001px) {
-  body.mode-advanced { margin: 0; }   /* page scrolls: results live below the fold */
+  body.mode-advanced { margin: 0; padding: 0; }   /* page scrolls; use the full width */
   body.mode-advanced .container {
     display: flex;
     flex-direction: column;
     max-width: none;
-    padding: 0.6rem 1rem;
+    width: 100%;
+    padding: 0.6rem 0.75rem;
     box-sizing: border-box;
   }
   /* Compact the page header so the panels get the vertical space */
@@ -515,10 +516,10 @@ tr:hover { background: #eaf2f8; }
   body.mode-advanced .disclaimer { font-size: 0.72rem; padding: 0.4rem 0.6rem; margin-bottom: 0.4rem; }
   body.mode-advanced .mode-toggle { margin: 0.2rem 0 0.4rem; }
   body.mode-advanced #advanced-layout {
-    height: calc(100dvh - 8.6rem);   /* one viewport minus the page header (h1 + disclaimer + mode toggle); tuned so results sit at the fold */
+    height: calc(100dvh - 7.4rem);   /* one viewport minus the page header (h1 + disclaimer + mode toggle); tuned so results sit at the fold */
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: 0.58fr 1fr;
+    grid-template-columns: 0.46fr 1fr;
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "toolbar toolbar"
