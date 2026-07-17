@@ -591,6 +591,95 @@ const CalcCore = (() => {
   }
 
   /**
+   * Solve a single fixed-length spreader beam's free-hang pose when each end may
+   * carry MORE THAN ONE lifting point (generalises solveHangingBeam's one-LP-per-end
+   * model). End A carries LPs `lpsA` with loads `wsA`; end B carries `lpsB`/`wsB`.
+   * Each end also has one top sling up to `hook` (height H) carrying that end's total
+   * load. A rigid bar loaded only at its two ends carries a net end force along the
+   * bar, so each end's top-sling vertical share = the sum of its LP loads. Solve
+   * centre (cx,cy) + yaw (th) so the beam's net horizontal force is zero and axial
+   * (damped Newton, residual normalised by total load). Beam height z is set by the
+   * min bottom-sling angle AND min bottom-sling length over EVERY actual bottom sling
+   * — the angle floor is honoured on the real slings, never a load-weighted proxy.
+   * Returns the two ends (shared z) + converged flag.
+   */
+  function solveSpreaderBeam(lpsA, wsA, lpsB, wsB, hook, H, length, minAngleRad, minSling) {
+    const half = length / 2;
+    const tan = Math.tan(minAngleRad);
+    const sum = (a) => a.reduce((s, v) => s + v, 0);
+    const WA = sum(wsA), WB = sum(wsB), W = WA + WB;
+    const cen = (lps, ws, Wt) => (Wt > 1e-9)
+      ? { x: lps.reduce((s, p, i) => s + ws[i] * p.x, 0) / Wt, y: lps.reduce((s, p, i) => s + ws[i] * p.y, 0) / Wt }
+      : { x: lps.reduce((s, p) => s + p.x, 0) / lps.length, y: lps.reduce((s, p) => s + p.y, 0) / lps.length };
+    const subA = cen(lpsA, wsA, WA), subB = cen(lpsB, wsB, WB);
+    let cx = W > 1e-9 ? (WA * subA.x + WB * subB.x) / W : (subA.x + subB.x) / 2;
+    let cy = W > 1e-9 ? (WA * subA.y + WB * subB.y) / W : (subA.y + subB.y) / 2;
+    let th = Math.atan2(subB.y - subA.y, subB.x - subA.x);
+    const cx0 = cx, cy0 = cy, th0 = th;
+
+    const endsOf = (cx, cy, th) => {
+      const ux = Math.cos(th), uy = Math.sin(th);
+      return { ea: { x: cx - ux * half, y: cy - uy * half }, eb: { x: cx + ux * half, y: cy + uy * half }, ux, uy };
+    };
+    const zBof = (ea, eb) => {
+      const reqEnd = (e, lps) => Math.max(...lps.map(lp => {
+        const hd = Math.hypot(e.x - lp.x, e.y - lp.y);
+        const za = lp.z + hd * tan;
+        const zl = (minSling > hd) ? lp.z + Math.sqrt(Math.max(0, minSling * minSling - hd * hd)) : lp.z;
+        return Math.max(za, zl);
+      }));
+      return Math.max(reqEnd(ea, lpsA), reqEnd(eb, lpsB));
+    };
+    const EPS_DZ = 1e-9; // floor vertical drops so a coincident joint can't go non-finite.
+    const residual = (cx, cy, th) => {
+      const { ea, eb, ux, uy } = endsOf(cx, cy, th);
+      const z = zBof(ea, eb);
+      const dzTop = Math.max(EPS_DZ, H - z);
+      // Net horizontal at an end = top sling (carries that end's total load toward the
+      // hook) + every bottom sling (each carries its LP's load toward that LP).
+      const hvec = (e, lps, ws, Wend) => {
+        let hx = Wend * (hook.x - e.x) / dzTop, hy = Wend * (hook.y - e.y) / dzTop;
+        for (let i = 0; i < lps.length; i++) {
+          const dz = Math.max(EPS_DZ, z - lps[i].z);
+          hx += ws[i] * (lps[i].x - e.x) / dz;
+          hy += ws[i] * (lps[i].y - e.y) / dz;
+        }
+        return { x: hx, y: hy };
+      };
+      const ha = hvec(ea, lpsA, wsA, WA), hb = hvec(eb, lpsB, wsB, WB);
+      return [ha.x + hb.x, ha.y + hb.y, ux * ha.y - uy * ha.x];
+    };
+
+    let converged = false;
+    const damp = 0.6, eps = 1e-6;
+    const rScale = Math.max(W, 1e-9); // residual is in load units; scale-free tolerance.
+    for (let it = 0; it < 80; it++) {
+      const r = residual(cx, cy, th);
+      if (!isFinite(r[0] + r[1] + r[2])) break;
+      if (Math.hypot(r[0], r[1], r[2]) / rScale < 1e-9) { converged = true; break; }
+      const r1 = residual(cx + eps, cy, th), r2 = residual(cx, cy + eps, th), r3 = residual(cx, cy, th + eps);
+      const J = [
+        [(r1[0] - r[0]) / eps, (r2[0] - r[0]) / eps, (r3[0] - r[0]) / eps],
+        [(r1[1] - r[1]) / eps, (r2[1] - r[1]) / eps, (r3[1] - r[1]) / eps],
+        [(r1[2] - r[2]) / eps, (r2[2] - r[2]) / eps, (r3[2] - r[2]) / eps]
+      ];
+      const Ji = mat3x3Inverse(J);
+      if (!Ji) break;
+      const d = [
+        -(Ji[0][0] * r[0] + Ji[0][1] * r[1] + Ji[0][2] * r[2]),
+        -(Ji[1][0] * r[0] + Ji[1][1] * r[1] + Ji[1][2] * r[2]),
+        -(Ji[2][0] * r[0] + Ji[2][1] * r[1] + Ji[2][2] * r[2])
+      ];
+      if (!isFinite(d[0] + d[1] + d[2])) break;
+      cx += damp * d[0]; cy += damp * d[1]; th += damp * d[2];
+    }
+    if (!converged) { cx = cx0; cy = cy0; th = th0; }
+    const { ea, eb } = endsOf(cx, cy, th);
+    const z = zBof(ea, eb);
+    return { end0: { x: ea.x, y: ea.y, z }, end1: { x: eb.x, y: eb.y, z }, converged };
+  }
+
+  /**
    * Compute vertical load from raw tension and endpoint geometry.
    * Avoids rounding error from using rounded angles.
    */
@@ -763,6 +852,6 @@ const CalcCore = (() => {
     LOAD_SHARING_FACTORS,
     getOrientationAxis,
     computeBeamEnds, computeBeamEndZ, computeBeamEndZWithMinSling,
-    computeBeamEndPair, fixedBeamEnds, solveHangingBeam, solveCascadeMainBeam
+    computeBeamEndPair, fixedBeamEnds, solveHangingBeam, solveCascadeMainBeam, solveSpreaderBeam
   };
 })();

@@ -373,6 +373,42 @@ runTest('spreader-trapezoid', spreaderCalc,
   { liftingPoints: trapezoidLPs(3, 6, 5), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 15 },
   { beamLength: 4, orientation: 'lengthwise' });
 
+// The Spreader Beam is a fixed physical bar: it must keep its full beamLength, connect
+// all slings at the two ends, and hang PLUMB (net horizontal ~0) for any COG offset —
+// the free-hang equilibrium solve replaced a heuristic placement that leaned up to ~22%
+// of load. Assert: drawn length == beamLength, and net-horizontal on the two beam ends
+// (2 top + 4 bottom slings) is < 0.5% of load. Tested across all offset directions.
+function runSpreaderBalancedTest(name, shared, config) {
+  totalTests++;
+  const errs = [];
+  let r;
+  try { r = spreaderCalc(shared, config); }
+  catch (e) { failures.push({ name, error: `EXCEPTION: ${e.message}` }); return; }
+  const beam = r.beams.find(b => b.name === 'Spreader Beam');
+  const drawnLen = Math.sqrt((beam.endB.x - beam.endA.x) ** 2 + (beam.endB.y - beam.endA.y) ** 2 + (beam.endB.z - beam.endA.z) ** 2);
+  if (Math.abs(drawnLen - config.beamLength) > 0.01) errs.push(`drawn length ${drawnLen.toFixed(3)} != beamLength ${config.beamLength}`);
+  const net = beamHorizNet(r, ['Beam End A', 'Beam End B']);
+  if (net.matched !== 6) errs.push(`expected 6 slings on the beam ends (2 top + 4 bottom), got ${net.matched}`);
+  if (net.net > 0.005 * shared.totalLoad) errs.push(`beam net horizontal ${net.net.toFixed(4)} > 0.5% of load — bar leans`);
+  if (r.warnings.beamEquilibriumNotConverged) errs.push(`rig should reach equilibrium for an in-hull COG`);
+  if (Math.abs(r.hook.x - shared.cog.x) > 0.01 || Math.abs(r.hook.y - shared.cog.y) > 0.01)
+    errs.push(`hook (${r.hook.x},${r.hook.y}) not over COG`);
+  if (errs.length) failures.push({ name, errors: errs, shared, config });
+  else passCount++;
+}
+runSpreaderBalancedTest('spreader-balanced-centred',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLength: 6, orientation: 'lengthwise' });
+runSpreaderBalancedTest('spreader-balanced-offset-x',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 1.5, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLength: 6, orientation: 'lengthwise' });
+runSpreaderBalancedTest('spreader-balanced-offset-y',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 0, y: 1.2, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLength: 6, orientation: 'lengthwise' });
+runSpreaderBalancedTest('spreader-balanced-diagonal',
+  { liftingPoints: rectLPs(8, 4), cog: { x: 1.2, y: 0.8, z: 0 }, minAngleDeg: 60, totalLoad: 50 },
+  { beamLength: 6, orientation: 'lengthwise' });
+
 
 // === 3. STINGER / EQUALISING TRIANGLE ===
 const stingerCalc = (s, c) => CalcStinger.calculate(s, c);
