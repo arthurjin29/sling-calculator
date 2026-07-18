@@ -408,6 +408,19 @@ runSpreaderBalancedTest('spreader-balanced-offset-y',
 runSpreaderBalancedTest('spreader-balanced-diagonal',
   { liftingPoints: rectLPs(8, 4), cog: { x: 1.2, y: 0.8, z: 0 }, minAngleDeg: 60, totalLoad: 50 },
   { beamLength: 6, orientation: 'lengthwise' });
+// Odd split — an L-shaped layout puts 3 LPs on one end and 1 on the other. The
+// solver must still hang the fixed bar plumb (net-H ~0) with any per-end LP count,
+// summing the ACTUAL bottom slings (not a load-weighted proxy).
+runSpreaderBalancedTest('spreader-balanced-odd-split',
+  { liftingPoints: [{ x: -3, y: -1.5, z: 0 }, { x: -3, y: 1.5, z: 0 }, { x: -1, y: 0, z: 0 }, { x: 4, y: 0, z: 0 }],
+    cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLength: 6, orientation: 'lengthwise' });
+// Elevated / mixed-z LPs — where summing the real slings (with their real vertical
+// drops) diverges from a load-weighted proxy; the bar must still balance to net-H ~0.
+runSpreaderBalancedTest('spreader-balanced-elevated-mixed-z',
+  { liftingPoints: [{ x: -3, y: -1.5, z: 1 }, { x: -3, y: 1.5, z: 0 }, { x: 3, y: -1.5, z: 0 }, { x: 3, y: 1.5, z: 1 }],
+    cog: { x: 0, y: 0, z: 0.5 }, minAngleDeg: 45, totalLoad: 20 },
+  { beamLength: 6, orientation: 'lengthwise' });
 
 
 // === 3. STINGER / EQUALISING TRIANGLE ===
