@@ -421,6 +421,28 @@ runSpreaderBalancedTest('spreader-balanced-elevated-mixed-z',
   { liftingPoints: [{ x: -3, y: -1.5, z: 1 }, { x: -3, y: 1.5, z: 0 }, { x: 3, y: -1.5, z: 0 }, { x: 3, y: 1.5, z: 1 }],
     cog: { x: 0, y: 0, z: 0.5 }, minAngleDeg: 45, totalLoad: 20 },
   { beamLength: 6, orientation: 'lengthwise' });
+// Min bottom-sling LENGTH floor (parity with parallel/cascade): with a shallow min
+// angle and LPs close under the ends, the angle alone would give sling length 1.73 m
+// (hd 1.5, 30° → za 0.866, len = 1.5/cos30), but the 2 m length floor raises the beam
+// so every bottom sling is >= 2 m. Hand-check: hd 1.5, floor 2 → zl = sqrt(2^2-1.5^2)
+// = 1.323 > za 0.866, so the length floor governs and the shortest bottom sling == 2.
+(function () {
+  totalTests++;
+  const errs = [];
+  const shared = { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 30, totalLoad: 10 };
+  const config = { beamLength: 6, orientation: 'lengthwise', bottomSlingLen: 2 };
+  let r;
+  try { r = spreaderCalc(shared, config); }
+  catch (e) { failures.push({ name: 'spreader-bottom-sling-min-length', error: `EXCEPTION: ${e.message}` }); return; }
+  const bottom = r.tiers[0].slings;
+  const minLen = Math.min(...bottom.map(s => s.length));
+  if (bottom.some(s => s.length < config.bottomSlingLen - 0.01))
+    errs.push(`a bottom sling is shorter than the ${config.bottomSlingLen} m floor: ${bottom.map(s => s.length).join(', ')}`);
+  if (Math.abs(minLen - config.bottomSlingLen) > 0.05)
+    errs.push(`length floor not governing: shortest bottom sling ${minLen.toFixed(3)} != ${config.bottomSlingLen}`);
+  if (errs.length) failures.push({ name: 'spreader-bottom-sling-min-length', errors: errs });
+  else passCount++;
+})();
 
 
 // === 3. STINGER / EQUALISING TRIANGLE ===

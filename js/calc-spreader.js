@@ -16,6 +16,7 @@ window.CalcSpreader = (() => {
     const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
     const { beamLength, orientation } = config;
     const minAngleRad = C.degToRad(minAngleDeg);
+    const minSlingLen = config.bottomSlingLen || 2; // min bottom-sling length floor (parity with parallel/cascade)
 
     // ── 1. Beam orientation axis + seed placement (used ONLY to assign each LP to
     //    the nearer end; the resting pose comes from the equilibrium solve below). ──
@@ -58,14 +59,14 @@ window.CalcSpreader = (() => {
     //    every sling attaches at an END, and the bar translates/yaws to hang plumb
     //    (net horizontal ~0) with the hook over the COG. Hook height is set by the
     //    min top-sling angle over the ends; pose depends on hook height and vice
-    //    versa, so iterate. minSling = 0 → beam height governed by the min bottom
-    //    angle alone (matches the old computeBeamEndZ behaviour). ──
+    //    versa, so iterate. Beam height is governed by the min bottom-sling angle AND
+    //    the min bottom-sling length (minSlingLen), whichever raises the beam more. ──
     const cogOutsidePolygon = !C.pointInPolygon2D(cog, liftingPoints);
     const hookXY = { x: cog.x, y: cog.y };
     let hookZ = Math.max(...liftingPoints.map(lp => lp.z + C.horizontalDist(lp, hookXY) * Math.tan(minAngleRad)));
     let endA, endB, converged = true, hookConverged = false;
     for (let outer = 0; outer < 12; outer++) {
-      const r = C.solveSpreaderBeam(lpsA, wsA, lpsB, wsB, hookXY, hookZ, beamLength, minAngleRad, 0);
+      const r = C.solveSpreaderBeam(lpsA, wsA, lpsB, wsB, hookXY, hookZ, beamLength, minAngleRad, minSlingLen);
       endA = r.end0; endB = r.end1; converged = r.converged;
       const newHookZ = Math.max(
         endA.z + C.horizontalDist(endA, hookXY) * Math.tan(minAngleRad),

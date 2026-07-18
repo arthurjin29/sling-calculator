@@ -617,6 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'spreader-beam':
         data.beamLength = parseRequiredFloat('spreader-beam-length', 'Beam Length');
         data.orientation = document.getElementById('spreader-orientation').value;
+        data.bottomSlingLen = parseFloat(document.getElementById('spreader-bottom-sling-len').value) || 2;
         break;
       case 'stinger':
         data.topSlingLength = parseFloat(document.getElementById('stinger-top-length').value) || 1;
